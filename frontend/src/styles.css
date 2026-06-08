@@ -538,7 +538,26 @@ body.map-day .search-empty {
 
 .item-title .rating {
   flex: 0 0 auto;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 3px;
   white-space: nowrap;
+  scrollbar-color: var(--scroll-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.item-title .rating::-webkit-scrollbar {
+  height: 4px;
+}
+
+.item-title .rating::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.item-title .rating::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scroll-thumb);
 }
 
 .pill-row {
@@ -1621,15 +1640,18 @@ body.map-day .review-preview {
   }
 
   .side-panel .item-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
-    padding-right: 24px;
+    padding-right: 0;
   }
 
   .side-panel .item-title > span:first-child {
-    flex-basis: 150px;
+    width: 100%;
   }
 
   .side-panel .item-title .rating {
+    width: 100%;
     font-size: 0.78rem;
   }
 
