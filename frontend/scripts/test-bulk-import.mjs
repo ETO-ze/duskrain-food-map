@@ -55,7 +55,7 @@ if (rows[14].note !== "量大便宜") {
   throw new Error(`Note parsing failed: ${JSON.stringify(rows[14])}`);
 }
 
-const ambiguousBranch = bestPoiCandidate(rows[0], [
+const highestScoredBranch = bestPoiCandidate(rows[0], [
   {
     name: "喜家德虾仁水饺(嘉茂店)",
     address: "埃德蒙顿路48号嘉茂凯德广场",
@@ -71,8 +71,21 @@ const ambiguousBranch = bestPoiCandidate(rows[0], [
     provider_category: "餐饮服务;中餐厅;特色/地方风味餐厅",
   },
 ]);
-if (!ambiguousBranch?.ambiguous) {
-  throw new Error(`Similar branches should require manual selection: ${JSON.stringify(ambiguousBranch)}`);
+if (highestScoredBranch?.candidate.name !== "喜家德虾仁水饺(学府凯德店)") {
+  throw new Error(`Highest-scored branch should be selected: ${JSON.stringify(highestScoredBranch)}`);
+}
+
+const explicitRecommendations = parseBulkPlaceText(`1 喜家德（凯德广场店） 哈尔滨 8.2 必去
+2 橡果咖啡 黑龙江省哈尔滨市南岗区上夹树街66-2号 7.8 避雷
+3 富都美食 哈尔滨 量大便宜 8.6`);
+if (explicitRecommendations[0].recommend_level !== "必去" || explicitRecommendations[0].recommendation_defaulted) {
+  throw new Error(`Explicit recommendation parsing failed: ${JSON.stringify(explicitRecommendations[0])}`);
+}
+if (explicitRecommendations[1].recommend_level !== "避雷" || explicitRecommendations[1].recommendation_defaulted) {
+  throw new Error(`Explicit recommendation parsing failed: ${JSON.stringify(explicitRecommendations[1])}`);
+}
+if (explicitRecommendations[2].recommend_level !== "推荐" || !explicitRecommendations[2].recommendation_defaulted) {
+  throw new Error(`Default recommendation parsing failed: ${JSON.stringify(explicitRecommendations[2])}`);
 }
 
 console.table(rows.map(({ lineNumber, name, city, address, note, rating, recommend_level }) => ({

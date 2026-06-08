@@ -71,15 +71,16 @@ export function parseBulkPlaceLine(source, lineNumber = 1) {
   const original = String(source || "").trim();
   if (!original) return null;
   let text = original
-    .replace(/^\s*\d+\s*[.、)）]\s*/, "")
+    .replace(/^\s*\d+\s*(?:[.、)）]\s*|\s+)/, "")
     .replace(/\s+/g, " ")
     .trim();
-  const ratingMatch = text.match(/(\d+(?:\.\d+)?)\s*$/);
+  const ratingMatch = text.match(/(\d+(?:\.\d+)?)\s*(必去|推荐|一般|避雷)?\s*$/);
   if (!ratingMatch) {
-    return { lineNumber, original, enabled: false, error: "末尾缺少评分", status: "invalid" };
+    return { lineNumber, original, enabled: false, error: "末尾缺少评分或推荐等级格式不正确", status: "invalid" };
   }
 
   const rating = Number(ratingMatch[1]);
+  const explicitRecommendation = ratingMatch[2] || "";
   text = text.slice(0, ratingMatch.index).trim();
   if (!text || !Number.isFinite(rating) || rating < 0 || rating > 10) {
     return { lineNumber, original, enabled: false, error: "店名为空或评分不在 0-10", status: "invalid" };
@@ -110,7 +111,8 @@ export function parseBulkPlaceLine(source, lineNumber = 1) {
     address,
     note,
     rating,
-    recommend_level: recommendationForRating(rating),
+    recommend_level: explicitRecommendation || recommendationForRating(rating),
+    recommendation_defaulted: !explicitRecommendation,
     status: "ready",
     message: "",
     matchedName: "",
@@ -160,12 +162,5 @@ export function bestPoiCandidate(row, candidates) {
   const scored = [...(candidates || [])]
     .map((candidate) => ({ candidate, score: scorePoiCandidate(row, candidate) }))
     .sort((a, b) => b.score - a.score);
-  if (!scored.length) return null;
-  const best = scored[0];
-  const runnerUp = scored[1];
-  return {
-    ...best,
-    runnerUpScore: runnerUp?.score ?? null,
-    ambiguous: Boolean(runnerUp && runnerUp.score >= 75 && best.score - runnerUp.score <= 25),
-  };
+  return scored[0] || null;
 }

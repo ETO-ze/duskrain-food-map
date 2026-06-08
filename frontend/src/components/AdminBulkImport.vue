@@ -91,8 +91,7 @@ async function importAll() {
       const query = [row.name, row.address].filter(Boolean).join(" ").slice(0, 80);
       const searchData = await searchPoi(query, row.city.slice(0, 40));
       const match = bestPoiCandidate(row, searchData.items || []);
-      if (!match || match.score < 75) throw new Error("没有找到足够可靠的高德商家");
-      if (match.ambiguous) throw new Error("找到多个相近门店，请改用“搜索导入”手动选择");
+      if (!match) throw new Error("高德没有返回可用商家");
 
       let detail = match.candidate;
       row.matchedName = detail.name || "";
@@ -151,14 +150,14 @@ function clearInput() {
     </div>
     <div class="bulk-rule">
       <strong>输入格式</strong>
-      <span>编号. 店名 城市或详细地址 评分</span>
-      <small>评分 ≥ 8.0 自动设为“推荐”，评分 &lt; 8.0 自动设为“一般”。默认作者为吕俊泽。</small>
+      <span>编号 店名 城市或详细地址 评分 推荐等级</span>
+      <small>推荐等级支持“必去 / 推荐 / 一般 / 避雷”。未填写时，评分 ≥ 8.0 默认为“推荐”，评分 &lt; 8.0 默认为“一般”。</small>
     </div>
     <textarea
       v-model="rawText"
       class="bulk-input"
       :disabled="isRunning"
-      placeholder="1. 喜家德（凯德广场店） 哈尔滨 8.2&#10;2. 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 哈尔滨 9.1&#10;3. 富都美食 哈尔滨 量大便宜 8.6"
+      placeholder="1 喜家德（凯德广场店） 哈尔滨 8.2 推荐&#10;2 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 9.1 必去&#10;3 富都美食 哈尔滨 量大便宜 8.6"
     ></textarea>
     <div class="button-row">
       <button class="btn" type="button" :disabled="!readyCount || isRunning" @click="importAll">
@@ -190,6 +189,7 @@ function clearInput() {
             <span class="pill-row">
               <span class="rating">{{ row.rating }} / 10</span>
               <span class="pill">{{ row.recommend_level }}</span>
+              <span v-if="row.recommendation_defaulted" class="pill">默认</span>
               <span v-if="row.matchedName" class="pill">匹配：{{ row.matchedName }}</span>
             </span>
             <span v-if="row.message" class="bulk-row-message">{{ row.message }}</span>
