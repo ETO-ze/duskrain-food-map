@@ -85,6 +85,68 @@ def db() -> Any:
         conn.close()
 
 
+PLACE_INFORMATION_FIELDS = (
+    "address", "city", "district", "provider_category", "phone", "business_hours",
+    "amap_detail_url", "provider_detail_url", "my_category", "rating",
+    "recommend_level", "review_url", "review_text", "tags", "note", "visited_at",
+    "cover_image", "image_urls",
+)
+
+
+def place_information_score(row: sqlite3.Row) -> int:
+    item = dict(row)
+    score = 0
+    for field in PLACE_INFORMATION_FIELDS:
+        value = item.get(field)
+        if value is None or value == "":
+            continue
+        text = str(value).strip()
+        if text:
+            score += 10 + min(len(text), 100)
+    return score
+
+
+def remove_author_duplicates(conn: sqlite3.Connection) -> None:
+    groups: dict[tuple[Any, ...], list[sqlite3.Row]] = {}
+    rows = conn.execute("SELECT * FROM food_places ORDER BY id").fetchall()
+    for row in rows:
+        author = (row["rating_author"] or "吕俊泽").strip().lower()
+        provider_poi_id = (row["provider_poi_id"] or "").strip()
+        if provider_poi_id:
+            key = ("poi", row["map_provider"] or "amap", provider_poi_id, author)
+        else:
+            name = (row["name"] or "").strip().lower()
+            address = (row["address"] or "").strip().lower()
+            if not name or not address:
+                continue
+            key = (
+                "location",
+                name,
+                address,
+                round(float(row["lng"]), 6),
+                round(float(row["lat"]), 6),
+                author,
+            )
+        groups.setdefault(key, []).append(row)
+
+    for matches in groups.values():
+        if len(matches) < 2:
+            continue
+        best = max(
+            matches,
+            key=lambda row: (
+                place_information_score(row),
+                row["updated_at"] or "",
+                row["id"],
+            ),
+        )
+        duplicate_ids = [row["id"] for row in matches if row["id"] != best["id"]]
+        conn.executemany(
+            "DELETE FROM food_places WHERE id = ?",
+            [(place_id,) for place_id in duplicate_ids],
+        )
+
+
 def init_db() -> None:
     with db() as conn:
         conn.execute(
@@ -177,32 +239,7 @@ def init_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_food_places_map_provider ON food_places(map_provider)"
         )
-        conn.execute(
-            """
-            DELETE FROM food_places
-            WHERE provider_poi_id != ''
-              AND id NOT IN (
-                SELECT MAX(id)
-                FROM food_places
-                WHERE provider_poi_id != ''
-                GROUP BY map_provider, provider_poi_id
-              )
-            """
-        )
-        conn.execute(
-            """
-            DELETE FROM food_places
-            WHERE provider_poi_id = ''
-              AND name != ''
-              AND address != ''
-              AND id NOT IN (
-                SELECT MAX(id)
-                FROM food_places
-                WHERE provider_poi_id = '' AND name != '' AND address != ''
-                GROUP BY lower(trim(name)), lower(trim(address)), round(lng, 6), round(lat, 6)
-              )
-            """
-        )
+        remove_author_duplicates(conn)
 
 
 @app.on_event("startup")
@@ -229,10 +266,18 @@ def find_duplicate_place(
 
     provider_poi_id = payload.provider_poi_id.strip()
     map_provider = payload.map_provider.strip() or "amap"
+    rating_author = payload.rating_author.strip() or "吕俊泽"
     if provider_poi_id:
         row = conn.execute(
-            f"SELECT * FROM food_places WHERE map_provider = ? AND provider_poi_id = ?{exclude_sql} LIMIT 1",
-            [map_provider, provider_poi_id, *exclude_params],
+            f"""
+            SELECT * FROM food_places
+            WHERE map_provider = ?
+              AND provider_poi_id = ?
+              AND lower(trim(COALESCE(NULLIF(rating_author, ''), '吕俊泽'))) = lower(trim(?))
+              {exclude_sql}
+            LIMIT 1
+            """,
+            [map_provider, provider_poi_id, rating_author, *exclude_params],
         ).fetchone()
         if row:
             return row
@@ -247,10 +292,11 @@ def find_duplicate_place(
               AND lower(trim(address)) = lower(trim(?))
               AND abs(lng - ?) < 0.000001
               AND abs(lat - ?) < 0.000001
+              AND lower(trim(COALESCE(NULLIF(rating_author, ''), '吕俊泽'))) = lower(trim(?))
               {exclude_sql}
             LIMIT 1
             """,
-            [name, address, payload.lng, payload.lat, *exclude_params],
+            [name, address, payload.lng, payload.lat, rating_author, *exclude_params],
         ).fetchone()
         if row:
             return row

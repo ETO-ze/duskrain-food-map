@@ -1242,6 +1242,11 @@ body.map-day .review-preview {
   color: #31c48d;
 }
 
+.bulk-summary .is-updated,
+.bulk-row.is-updated .bulk-row-message {
+  color: var(--cyan);
+}
+
 .bulk-summary .is-duplicate,
 .bulk-row.is-duplicate .bulk-row-message {
   color: #f6c344;
@@ -1276,6 +1281,10 @@ body.map-day .review-preview {
 
 .bulk-row.is-created {
   border-color: color-mix(in srgb, #31c48d 55%, transparent);
+}
+
+.bulk-row.is-updated {
+  border-color: color-mix(in srgb, var(--cyan) 55%, transparent);
 }
 
 .bulk-row.is-duplicate {
@@ -1480,6 +1489,19 @@ body.map-day .review-preview {
   .place-item,
   .search-item {
     padding: 11px;
+  }
+
+  .side-panel .item-title {
+    gap: 6px;
+    padding-right: 24px;
+  }
+
+  .side-panel .item-title > span:first-child {
+    flex-basis: 150px;
+  }
+
+  .side-panel .item-title .rating {
+    font-size: 0.78rem;
   }
 
   .app-shell.sidebar-collapsed {

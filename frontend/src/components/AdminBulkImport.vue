@@ -11,7 +11,7 @@ const emit = defineEmits(["completed", "status"]);
 const rawText = ref("");
 const rows = ref([]);
 const isRunning = ref(false);
-const progress = ref({ current: 0, total: 0, created: 0, duplicate: 0, failed: 0 });
+const progress = ref({ current: 0, total: 0, created: 0, updated: 0, duplicate: 0, failed: 0 });
 const selectedRows = computed(() => rows.value.filter((row) => row.enabled && row.status !== "invalid"));
 const readyCount = computed(() => selectedRows.value.length);
 
@@ -19,8 +19,10 @@ watch(rawText, (value) => {
   if (!isRunning.value) rows.value = parseBulkPlaceText(value);
 }, { immediate: true });
 
-function findExisting(candidate, additionalPlaces = []) {
-  return [...props.places, ...additionalPlaces].find((place) => {
+function findExisting(candidate, row, additionalPlaces = []) {
+  const author = String(row.rating_author || "吕俊泽").trim().toLowerCase();
+  return [...additionalPlaces, ...props.places].find((place) => {
+    if (String(place.rating_author || "吕俊泽").trim().toLowerCase() !== author) return false;
     if (candidate.provider_poi_id && place.provider_poi_id === candidate.provider_poi_id && (place.map_provider || "amap") === "amap") {
       return true;
     }
@@ -46,7 +48,7 @@ function placePayload(detail, row) {
     business_hours: detail.business_hours || "",
     amap_detail_url: detail.amap_detail_url || "",
     provider_detail_url: detail.provider_detail_url || detail.amap_detail_url || "",
-    my_category: "",
+    my_category: row.my_category || "",
     rating: row.rating,
     rating_author: row.rating_author || "吕俊泽",
     recommend_level: row.recommend_level,
@@ -62,6 +64,29 @@ function placePayload(detail, row) {
   };
 }
 
+const INFORMATION_FIELDS = [
+  "address", "city", "district", "provider_category", "phone", "business_hours",
+  "amap_detail_url", "provider_detail_url", "my_category", "recommend_level",
+  "review_url", "review_text", "tags", "note", "visited_at", "cover_image", "image_urls",
+];
+
+function informationScore(place) {
+  return INFORMATION_FIELDS.reduce((score, field) => {
+    const value = String(place?.[field] || "").trim();
+    return score + (value ? 10 + Math.min(value.length, 100) : 0);
+  }, place?.rating == null ? 0 : 10);
+}
+
+function mergePlace(existing, incoming) {
+  const merged = { ...incoming };
+  Object.keys(merged).forEach((field) => {
+    if ((merged[field] == null || merged[field] === "") && existing[field] != null) {
+      merged[field] = existing[field];
+    }
+  });
+  return merged;
+}
+
 function resetResults() {
   rows.value.forEach((row) => {
     if (row.status !== "invalid") {
@@ -70,7 +95,7 @@ function resetResults() {
       row.matchedName = "";
     }
   });
-  progress.value = { current: 0, total: 0, created: 0, duplicate: 0, failed: 0 };
+  progress.value = { current: 0, total: 0, created: 0, updated: 0, duplicate: 0, failed: 0 };
 }
 
 async function importAll() {
@@ -102,15 +127,27 @@ async function importAll() {
         } catch (_) {}
       }
 
-      const existing = findExisting(detail, createdPlaces);
+      const payload = placePayload(detail, row);
+      const existing = findExisting(detail, row, createdPlaces);
       if (existing) {
-        row.status = "duplicate";
-        row.message = `已存在：${existing.name}`;
-        progress.value.duplicate += 1;
+        const merged = mergePlace(existing, payload);
+        if (informationScore(merged) > informationScore(existing)) {
+          const saved = await saveAdminPlace(merged, existing.id);
+          const localIndex = createdPlaces.findIndex((place) => place.id === saved.id);
+          if (localIndex >= 0) createdPlaces.splice(localIndex, 1, saved);
+          else createdPlaces.push(saved);
+          row.status = "updated";
+          row.message = `已补全：${saved.name}（${saved.rating_author}）`;
+          progress.value.updated += 1;
+        } else {
+          row.status = "duplicate";
+          row.message = `已保留信息更多的记录：${existing.name}（${existing.rating_author || "吕俊泽"}）`;
+          progress.value.duplicate += 1;
+        }
         continue;
       }
 
-      const saved = await saveAdminPlace(placePayload(detail, row));
+      const saved = await saveAdminPlace(payload);
       createdPlaces.push(saved);
       row.status = "created";
       row.message = `已新建：${saved.name}`;
@@ -131,7 +168,7 @@ async function importAll() {
 
   isRunning.value = false;
   emit("completed", createdPlaces);
-  emit("status", `批量新建完成：成功 ${progress.value.created}，重复 ${progress.value.duplicate}，失败 ${progress.value.failed}。`);
+  emit("status", `批量新建完成：新建 ${progress.value.created}，补全 ${progress.value.updated}，重复 ${progress.value.duplicate}，失败 ${progress.value.failed}。`);
 }
 
 function clearInput() {
@@ -150,14 +187,14 @@ function clearInput() {
     </div>
     <div class="bulk-rule">
       <strong>输入格式</strong>
-      <span>编号 店名 城市或详细地址 评分 推荐等级 作者</span>
-      <small>推荐等级支持“必去 / 推荐 / 一般 / 避雷”。推荐等级和作者未填写时，按评分规则并默认使用吕俊泽。</small>
+      <span>编号 店名 城市或详细地址 评分 推荐等级 作者 菜系</span>
+      <small>推荐等级支持“必去 / 推荐 / 一般 / 避雷”。未填写作者时默认使用吕俊泽，菜系未填写时留空。</small>
     </div>
     <textarea
       v-model="rawText"
       class="bulk-input"
       :disabled="isRunning"
-      placeholder="1 喜家德（凯德广场店） 哈尔滨 8.2 推荐 吕俊泽&#10;2 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 9.1 必去 吕俊泽&#10;3 富都美食 哈尔滨 量大便宜 8.6"
+      placeholder="1 喜家德（凯德广场店） 哈尔滨 8.2 推荐 吕俊泽 连锁家常&#10;2 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 9.1 必去 吕俊泽 烧烤&#10;3 富都美食 哈尔滨 量大便宜 8.6"
     ></textarea>
     <div class="button-row">
       <button class="btn" type="button" :disabled="!readyCount || isRunning" @click="importAll">
@@ -168,6 +205,7 @@ function clearInput() {
     <div v-if="progress.total" class="bulk-summary">
       <span>进度 {{ progress.current }}/{{ progress.total }}</span>
       <span class="is-created">成功 {{ progress.created }}</span>
+      <span class="is-updated">补全 {{ progress.updated }}</span>
       <span class="is-duplicate">重复 {{ progress.duplicate }}</span>
       <span class="is-failed">失败 {{ progress.failed }}</span>
     </div>
@@ -190,6 +228,7 @@ function clearInput() {
               <span class="rating">{{ row.rating }} / 10</span>
               <span class="pill">{{ row.recommend_level }}</span>
               <span class="pill">作者：{{ row.rating_author }}</span>
+              <span v-if="row.my_category" class="pill">菜系：{{ row.my_category }}</span>
               <span v-if="row.recommendation_defaulted" class="pill">默认</span>
               <span v-if="row.matchedName" class="pill">匹配：{{ row.matchedName }}</span>
             </span>

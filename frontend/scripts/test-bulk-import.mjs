@@ -75,16 +75,16 @@ if (highestScoredBranch?.candidate.name !== "喜家德虾仁水饺(学府凯德�
   throw new Error(`Highest-scored branch should be selected: ${JSON.stringify(highestScoredBranch)}`);
 }
 
-const explicitRecommendations = parseBulkPlaceText(`1 喜家德（凯德广场店） 哈尔滨 8.2 必去 吕俊泽
-2 橡果咖啡 黑龙江省哈尔滨市南岗区上夹树街66-2号 7.8 避雷 DuskRain
+const explicitRecommendations = parseBulkPlaceText(`1 喜家德（凯德广场店） 哈尔滨 8.2 必去 吕俊泽 连锁家常
+2 橡果咖啡 黑龙江省哈尔滨市南岗区上夹树街66-2号 7.8 避雷 DuskRain 咖啡甜品
 3 富都美食 哈尔滨 量大便宜 8.6`);
-if (explicitRecommendations[0].recommend_level !== "必去" || explicitRecommendations[0].rating_author !== "吕俊泽" || explicitRecommendations[0].recommendation_defaulted) {
+if (explicitRecommendations[0].recommend_level !== "必去" || explicitRecommendations[0].rating_author !== "吕俊泽" || explicitRecommendations[0].my_category !== "连锁家常" || explicitRecommendations[0].recommendation_defaulted) {
   throw new Error(`Explicit recommendation parsing failed: ${JSON.stringify(explicitRecommendations[0])}`);
 }
-if (explicitRecommendations[1].recommend_level !== "避雷" || explicitRecommendations[1].rating_author !== "DuskRain" || explicitRecommendations[1].recommendation_defaulted) {
+if (explicitRecommendations[1].recommend_level !== "避雷" || explicitRecommendations[1].rating_author !== "DuskRain" || explicitRecommendations[1].my_category !== "咖啡甜品" || explicitRecommendations[1].recommendation_defaulted) {
   throw new Error(`Explicit recommendation parsing failed: ${JSON.stringify(explicitRecommendations[1])}`);
 }
-if (explicitRecommendations[2].recommend_level !== "推荐" || explicitRecommendations[2].rating_author !== "吕俊泽" || !explicitRecommendations[2].recommendation_defaulted) {
+if (explicitRecommendations[2].recommend_level !== "推荐" || explicitRecommendations[2].rating_author !== "吕俊泽" || explicitRecommendations[2].my_category !== "" || !explicitRecommendations[2].recommendation_defaulted) {
   throw new Error(`Default recommendation parsing failed: ${JSON.stringify(explicitRecommendations[2])}`);
 }
 
