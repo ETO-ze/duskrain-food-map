@@ -34,6 +34,9 @@ DuskRain 吕其林美食指南是一个自用的跨地图美食资料库。国�
 
 - 国内高德地图和海外 Google Maps 分离展示。
 - 管理端支持高德、Google Places 搜索候选店铺并点击加入。
+- 超级管理员后台继续由 Authelia 与 Google TOTP 保护，可管理全部店家和作者账号。
+- 独立作者工作台使用应用内账号登录，首次登录强制修改临时密码，只能管理本人名下的店家。
+- 同一地图 POI 可由不同作者分别评价，权限归属以 `rating_author` 为准。
 - 管理端支持粘贴“编号 店名 城市或地址 评分 推荐等级 作者 菜系”清单，一键匹配高德 POI、补全资料并批量新建。
 - 推荐等级支持“必去 / 推荐 / 一般 / 避雷”；未填写时按评分自动设置，作者未填写时默认为吕俊泽，菜系写入个人分类。
 - 城市或地址不完整时使用模糊搜索，并自动采用本站匹配分最高的第一个候选。
@@ -48,6 +51,7 @@ DuskRain 吕其林美食指南是一个自用的跨地图美食资料库。国�
 - 海外地图可选同步显示国内高德店家，自动进行 GCJ-02 到 WGS84 转换。
 - 海外页面的菜系、城市、作者、列表和点位共用同一数据集合：开启国内同步后自动加入国内选项，关闭后自动移除。
 - 桌面端侧栏管理，移动端列表和地图快速切换。
+- 首页提供附近店家筛选和随机探店。
 - 本地安全 GitHub 发布脚本，默认屏蔽环境变量、数据库、备份和构建文件。
 
 ## 页面入口
@@ -55,6 +59,7 @@ DuskRain 吕其林美食指南是一个自用的跨地图美食资料库。国�
 - 国内地图：[https://duskrain.cn/food-map/](https://duskrain.cn/food-map/)
 - 海外地图：[https://duskrain.cn/food-map/global/](https://duskrain.cn/food-map/global/)
 - 管理端：`/food-map/admin/`，由网站认证层保护
+- 作者工作台：`/food-map/developer/`
 - 店家评价：`/food-map/review/{店家ID}`
 
 ## 架构
@@ -154,6 +159,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish-github-safe.ps1 -Audi
 - [frontend/src/components/PublicMap.vue](frontend/src/components/PublicMap.vue)：国内地图。
 - [frontend/src/components/GlobalMap.vue](frontend/src/components/GlobalMap.vue)：海外地图。
 - [frontend/src/components/AdminDashboard.vue](frontend/src/components/AdminDashboard.vue)：管理端总控。
+- [frontend/src/components/AdminAuthors.vue](frontend/src/components/AdminAuthors.vue)：超级管理员作者账号管理。
+- [frontend/src/components/DeveloperDashboard.vue](frontend/src/components/DeveloperDashboard.vue)：普通作者登录与本人店家管理。
 - [frontend/src/components/AdminBulkImport.vue](frontend/src/components/AdminBulkImport.vue)：批量解析、匹配、去重和新建。
 - [frontend/src/utils/google-map.js](frontend/src/utils/google-map.js)：Google Maps、Places 和坐标转换。
 - [docs/PROJECT_MEMORY.md](docs/PROJECT_MEMORY.md)：项目长期技术记忆。
@@ -166,4 +173,5 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish-github-safe.ps1 -Audi
 - 服务端 Web Service Key 不应出现在前端或 GitHub。
 - Google Maps 和 Places API 应设置 API 限制、预算提醒和调用配额。
 - 管理端必须继续由反向代理认证保护。
+- 作者密码使用 PBKDF2 哈希保存，会话令牌仅保存 SHA-256 哈希；停用或重置账号会注销已有会话。
 - 本项目是个人美食记录工具，不提供第三方平台评分复制或商业数据采集。

@@ -120,3 +120,71 @@ export async function deleteAdminPlace(id) {
   clearPublicPlaceCaches();
   return data;
 }
+
+export async function getAdminAuthors() {
+  return readJson(await fetch(`${API_BASE}/admin/authors`));
+}
+
+export async function createAdminAuthor(payload) {
+  return readJson(await fetch(`${API_BASE}/admin/authors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }));
+}
+
+export async function updateAdminAuthor(id, payload) {
+  return readJson(await fetch(`${API_BASE}/admin/authors/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }));
+}
+
+export async function resetAdminAuthorPassword(id) {
+  return readJson(await fetch(`${API_BASE}/admin/authors/${id}/reset-password`, { method: "POST" }));
+}
+
+export async function developerLogin(username, password) {
+  return readJson(await fetch(`${API_BASE}/developer/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  }));
+}
+
+export async function getDeveloperSession() {
+  return readJson(await fetch(`${API_BASE}/developer/session`));
+}
+
+export async function developerLogout() {
+  return readJson(await fetch(`${API_BASE}/developer/logout`, { method: "POST" }));
+}
+
+export async function changeDeveloperPassword(currentPassword, newPassword) {
+  return readJson(await fetch(`${API_BASE}/developer/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  }));
+}
+
+export async function getDeveloperPlaces() {
+  return readJson(await fetch(`${API_BASE}/developer/places`));
+}
+
+export async function saveDeveloperPlace(payload, id) {
+  const data = await readJson(await fetch(id ? `${API_BASE}/developer/places/${id}` : `${API_BASE}/developer/places`, {
+    method: id ? "PUT" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }));
+  clearPublicPlaceCaches();
+  return data;
+}
+
+export async function deleteDeveloperPlace(id) {
+  const data = await readJson(await fetch(`${API_BASE}/developer/places/${id}`, { method: "DELETE" }));
+  clearPublicPlaceCaches();
+  return data;
+}

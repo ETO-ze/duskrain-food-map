@@ -1,13 +1,16 @@
 import os
 import re
+import hashlib
+import hmac
+import secrets
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -21,6 +24,22 @@ AMAP_WEB_SERVICE_KEY = os.getenv("AMAP_WEB_SERVICE_KEY", "").strip()
 AMAP_JS_KEY = os.getenv("AMAP_JS_KEY", "").strip()
 AMAP_SECURITY_CODE = os.getenv("AMAP_SECURITY_CODE", "").strip()
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
+DEVELOPER_SESSION_COOKIE = "duskrain_developer_session"
+DEVELOPER_SESSION_HOURS = 24
+INITIAL_DEVELOPER_PASSWORD = "123123"
+PASSWORD_ITERATIONS = 310_000
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
+LOGIN_FAILURES: dict[str, list[datetime]] = {}
+
+DEFAULT_DEVELOPER_ACCOUNTS = (
+    ("adminljz", "吕俊泽"),
+    ("adminlxy", "李昕阳"),
+    ("admingjdtddd", "果酱呆头大大大"),
+    ("adminwyz", "王钰泽"),
+    ("adminczk", "陈智鲲"),
+    ("adminly", "雷洋"),
+)
 
 COMMON_CITIES = (
     "北京", "上海", "广州", "深圳", "杭州", "南京", "苏州", "成都", "重庆", "武汉",
@@ -69,6 +88,26 @@ class Place(PlaceIn):
     updated_at: str
 
 
+class DeveloperLogin(BaseModel):
+    username: str = Field(..., min_length=3, max_length=48)
+    password: str = Field(..., min_length=6, max_length=128)
+
+
+class DeveloperPasswordChange(BaseModel):
+    current_password: str = Field(..., min_length=6, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class DeveloperAccountIn(BaseModel):
+    username: str = Field(..., min_length=3, max_length=48)
+    author_name: str = Field(..., min_length=1, max_length=80)
+    is_active: bool = True
+
+
+class DeveloperAccountUpdate(DeveloperAccountIn):
+    pass
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -83,6 +122,90 @@ def db() -> Any:
         conn.commit()
     finally:
         conn.close()
+
+
+def password_hash(password: str, salt: Optional[bytes] = None) -> tuple[str, str]:
+    actual_salt = salt or secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        actual_salt,
+        PASSWORD_ITERATIONS,
+    )
+    return actual_salt.hex(), digest.hex()
+
+
+def password_matches(password: str, salt_hex: str, digest_hex: str) -> bool:
+    _, candidate = password_hash(password, bytes.fromhex(salt_hex))
+    return hmac.compare_digest(candidate, digest_hex)
+
+
+def session_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def public_account(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "author_name": row["author_name"],
+        "is_active": bool(row["is_active"]),
+        "must_change_password": bool(row["must_change_password"]),
+        "last_login_at": row["last_login_at"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def seed_developer_accounts(conn: sqlite3.Connection) -> None:
+    now = utc_now()
+    for username, author_name in DEFAULT_DEVELOPER_ACCOUNTS:
+        exists = conn.execute(
+            "SELECT 1 FROM developer_accounts WHERE lower(username) = lower(?)",
+            (username,),
+        ).fetchone()
+        if exists:
+            continue
+        salt, digest = password_hash(INITIAL_DEVELOPER_PASSWORD)
+        conn.execute(
+            """
+            INSERT INTO developer_accounts (
+                username, author_name, password_salt, password_hash,
+                must_change_password, is_active, last_login_at, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, 1, 1, '', ?, ?)
+            """,
+            (username, author_name, salt, digest, now, now),
+        )
+
+
+def read_developer_account(request: Request, require_password_changed: bool = True) -> sqlite3.Row:
+    token = request.cookies.get(DEVELOPER_SESSION_COOKIE, "")
+    if not token:
+        raise HTTPException(status_code=401, detail="请先登录")
+    now = utc_now()
+    with db() as conn:
+        conn.execute("DELETE FROM developer_sessions WHERE expires_at <= ?", (now,))
+        row = conn.execute(
+            """
+            SELECT a.*
+            FROM developer_sessions s
+            JOIN developer_accounts a ON a.id = s.account_id
+            WHERE s.token_hash = ? AND s.expires_at > ? AND a.is_active = 1
+            LIMIT 1
+            """,
+            (session_token_hash(token), now),
+        ).fetchone()
+        if row:
+            conn.execute(
+                "UPDATE developer_sessions SET last_seen_at = ? WHERE token_hash = ?",
+                (now, session_token_hash(token)),
+            )
+    if not row:
+        raise HTTPException(status_code=401, detail="登录已失效")
+    if require_password_changed and row["must_change_password"]:
+        raise HTTPException(status_code=403, detail="请先修改初始密码")
+    return row
 
 
 PLACE_INFORMATION_FIELDS = (
@@ -239,6 +362,39 @@ def init_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_food_places_map_provider ON food_places(map_provider)"
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS developer_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                author_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                password_salt TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                must_change_password INTEGER NOT NULL DEFAULT 1,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                last_login_at TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS developer_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                token_hash TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                FOREIGN KEY(account_id) REFERENCES developer_accounts(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_developer_sessions_account ON developer_sessions(account_id)"
+        )
+        seed_developer_accounts(conn)
         remove_author_duplicates(conn)
 
 
@@ -409,6 +565,16 @@ def admin_page_no_slash() -> FileResponse:
     return FileResponse(APP_DIR / "static" / "index.html")
 
 
+@app.get("/developer/")
+def developer_page() -> FileResponse:
+    return FileResponse(APP_DIR / "static" / "index.html")
+
+
+@app.get("/developer")
+def developer_page_no_slash() -> FileResponse:
+    return FileResponse(APP_DIR / "static" / "index.html")
+
+
 @app.get("/review/{place_id}")
 def review_page(place_id: int) -> FileResponse:
     return FileResponse(APP_DIR / "static" / "index.html")
@@ -436,6 +602,176 @@ def config() -> dict[str, str]:
         "amapSecurityCode": AMAP_SECURITY_CODE,
         "googleMapsApiKey": GOOGLE_MAPS_API_KEY,
     }
+
+
+@app.post("/api/developer/login")
+def developer_login(
+    payload: DeveloperLogin,
+    request: Request,
+    response: Response,
+) -> dict[str, Any]:
+    username = payload.username.strip().lower()
+    client_ip = request.client.host if request.client else "unknown"
+    attempt_key = f"{client_ip}:{username}"
+    cutoff = datetime.now(timezone.utc) - LOGIN_FAILURE_WINDOW
+    failures = [attempt for attempt in LOGIN_FAILURES.get(attempt_key, []) if attempt > cutoff]
+    if len(failures) >= LOGIN_FAILURE_LIMIT:
+        raise HTTPException(status_code=429, detail="登录失败次数过多，请 15 分钟后重试")
+    with db() as conn:
+        account = conn.execute(
+            "SELECT * FROM developer_accounts WHERE lower(username) = ? LIMIT 1",
+            (username,),
+        ).fetchone()
+        if (
+            not account
+            or not account["is_active"]
+            or not password_matches(
+                payload.password,
+                account["password_salt"],
+                account["password_hash"],
+            )
+        ):
+            failures.append(datetime.now(timezone.utc))
+            LOGIN_FAILURES[attempt_key] = failures
+            raise HTTPException(status_code=401, detail="账号或密码错误")
+        LOGIN_FAILURES.pop(attempt_key, None)
+        now = utc_now()
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=DEVELOPER_SESSION_HOURS)).isoformat()
+        token = secrets.token_urlsafe(32)
+        conn.execute(
+            """
+            INSERT INTO developer_sessions (
+                account_id, token_hash, expires_at, created_at, last_seen_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (account["id"], session_token_hash(token), expires_at, now, now),
+        )
+        conn.execute(
+            "UPDATE developer_accounts SET last_login_at = ?, updated_at = ? WHERE id = ?",
+            (now, now, account["id"]),
+        )
+        account = conn.execute(
+            "SELECT * FROM developer_accounts WHERE id = ?",
+            (account["id"],),
+        ).fetchone()
+    response.set_cookie(
+        DEVELOPER_SESSION_COOKIE,
+        token,
+        max_age=DEVELOPER_SESSION_HOURS * 60 * 60,
+        path="/food-map",
+        secure=True,
+        httponly=True,
+        samesite="lax",
+    )
+    return public_account(account)
+
+
+@app.get("/api/developer/session")
+def developer_session(request: Request) -> dict[str, Any]:
+    return public_account(read_developer_account(request, require_password_changed=False))
+
+
+@app.post("/api/developer/logout")
+def developer_logout(request: Request, response: Response) -> dict[str, bool]:
+    token = request.cookies.get(DEVELOPER_SESSION_COOKIE, "")
+    if token:
+        with db() as conn:
+            conn.execute(
+                "DELETE FROM developer_sessions WHERE token_hash = ?",
+                (session_token_hash(token),),
+            )
+    response.delete_cookie(DEVELOPER_SESSION_COOKIE, path="/food-map")
+    return {"ok": True}
+
+
+@app.post("/api/developer/change-password")
+def developer_change_password(
+    payload: DeveloperPasswordChange,
+    request: Request,
+) -> dict[str, Any]:
+    account = read_developer_account(request, require_password_changed=False)
+    if not password_matches(
+        payload.current_password,
+        account["password_salt"],
+        account["password_hash"],
+    ):
+        raise HTTPException(status_code=400, detail="当前密码不正确")
+    if payload.new_password == INITIAL_DEVELOPER_PASSWORD:
+        raise HTTPException(status_code=400, detail="新密码不能继续使用初始密码")
+    salt, digest = password_hash(payload.new_password)
+    now = utc_now()
+    with db() as conn:
+        conn.execute(
+            """
+            UPDATE developer_accounts
+            SET password_salt = ?, password_hash = ?, must_change_password = 0, updated_at = ?
+            WHERE id = ?
+            """,
+            (salt, digest, now, account["id"]),
+        )
+        updated = conn.execute(
+            "SELECT * FROM developer_accounts WHERE id = ?",
+            (account["id"],),
+        ).fetchone()
+    return public_account(updated)
+
+
+@app.get("/api/developer/places", response_model=list[Place])
+def list_developer_places(request: Request) -> list[dict[str, Any]]:
+    account = read_developer_account(request)
+    with db() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM food_places
+            WHERE lower(trim(COALESCE(NULLIF(rating_author, ''), '吕俊泽'))) = lower(trim(?))
+            ORDER BY updated_at DESC
+            """,
+            (account["author_name"],),
+        ).fetchall()
+    return [row_to_place(row) for row in rows]
+
+
+@app.post("/api/developer/places", response_model=Place)
+def create_developer_place(payload: PlaceIn, request: Request) -> dict[str, Any]:
+    account = read_developer_account(request)
+    return create_place(payload.model_copy(update={"rating_author": account["author_name"]}))
+
+
+def developer_owned_place(place_id: int, account: sqlite3.Row) -> sqlite3.Row:
+    with db() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM food_places
+            WHERE id = ?
+              AND lower(trim(COALESCE(NULLIF(rating_author, ''), '吕俊泽'))) = lower(trim(?))
+            """,
+            (place_id, account["author_name"]),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="店家不存在或不属于当前作者")
+    return row
+
+
+@app.put("/api/developer/places/{place_id}", response_model=Place)
+def update_developer_place(
+    place_id: int,
+    payload: PlaceIn,
+    request: Request,
+) -> dict[str, Any]:
+    account = read_developer_account(request)
+    developer_owned_place(place_id, account)
+    return update_place(
+        place_id,
+        payload.model_copy(update={"rating_author": account["author_name"]}),
+    )
+
+
+@app.delete("/api/developer/places/{place_id}")
+def delete_developer_place(place_id: int, request: Request) -> dict[str, bool]:
+    account = read_developer_account(request)
+    developer_owned_place(place_id, account)
+    return delete_place(place_id)
 
 
 @app.get("/api/places", response_model=list[Place])
@@ -643,6 +979,151 @@ def get_admin_place(place_id: int) -> dict[str, Any]:
     if not row:
         raise HTTPException(status_code=404, detail="Place not found")
     return row_to_place(row)
+
+
+def validate_developer_username(username: str) -> str:
+    normalized = username.strip().lower()
+    if not re.fullmatch(r"admin[a-z0-9]{2,32}", normalized):
+        raise HTTPException(
+            status_code=400,
+            detail="账号必须以 admin 开头，后面使用 2-32 位小写字母或数字",
+        )
+    return normalized
+
+
+def account_with_place_count(conn: sqlite3.Connection, account_id: int) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT a.*,
+               (
+                   SELECT COUNT(*)
+                   FROM food_places p
+                   WHERE lower(trim(COALESCE(NULLIF(p.rating_author, ''), '吕俊泽')))
+                         = lower(trim(a.author_name))
+               ) AS place_count
+        FROM developer_accounts a
+        WHERE a.id = ?
+        """,
+        (account_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="作者账号不存在")
+    result = public_account(row)
+    result["place_count"] = row["place_count"]
+    return result
+
+
+@app.get("/api/admin/authors")
+def list_admin_authors() -> list[dict[str, Any]]:
+    with db() as conn:
+        rows = conn.execute(
+            """
+            SELECT a.*,
+                   (
+                       SELECT COUNT(*)
+                       FROM food_places p
+                       WHERE lower(trim(COALESCE(NULLIF(p.rating_author, ''), '吕俊泽')))
+                             = lower(trim(a.author_name))
+                   ) AS place_count
+            FROM developer_accounts a
+            ORDER BY a.id
+            """
+        ).fetchall()
+    result = []
+    for row in rows:
+        item = public_account(row)
+        item["place_count"] = row["place_count"]
+        result.append(item)
+    return result
+
+
+@app.post("/api/admin/authors")
+def create_admin_author(payload: DeveloperAccountIn) -> dict[str, Any]:
+    username = validate_developer_username(payload.username)
+    author_name = payload.author_name.strip()
+    salt, digest = password_hash(INITIAL_DEVELOPER_PASSWORD)
+    now = utc_now()
+    try:
+        with db() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO developer_accounts (
+                    username, author_name, password_salt, password_hash,
+                    must_change_password, is_active, last_login_at, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, 1, ?, '', ?, ?)
+                """,
+                (username, author_name, salt, digest, 1 if payload.is_active else 0, now, now),
+            )
+            return account_with_place_count(conn, cur.lastrowid)
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="账号或作者名已存在") from None
+
+
+@app.put("/api/admin/authors/{account_id}")
+def update_admin_author(
+    account_id: int,
+    payload: DeveloperAccountUpdate,
+) -> dict[str, Any]:
+    username = validate_developer_username(payload.username)
+    author_name = payload.author_name.strip()
+    now = utc_now()
+    try:
+        with db() as conn:
+            existing = conn.execute(
+                "SELECT * FROM developer_accounts WHERE id = ?",
+                (account_id,),
+            ).fetchone()
+            if not existing:
+                raise HTTPException(status_code=404, detail="作者账号不存在")
+            conn.execute(
+                """
+                UPDATE developer_accounts
+                SET username = ?, author_name = ?, is_active = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (username, author_name, 1 if payload.is_active else 0, now, account_id),
+            )
+            if existing["author_name"] != author_name:
+                conn.execute(
+                    """
+                    UPDATE food_places
+                    SET rating_author = ?, updated_at = ?
+                    WHERE lower(trim(COALESCE(NULLIF(rating_author, ''), '吕俊泽')))
+                          = lower(trim(?))
+                    """,
+                    (author_name, now, existing["author_name"]),
+                )
+            if not payload.is_active:
+                conn.execute(
+                    "DELETE FROM developer_sessions WHERE account_id = ?",
+                    (account_id,),
+                )
+            return account_with_place_count(conn, account_id)
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="账号或作者名已存在") from None
+
+
+@app.post("/api/admin/authors/{account_id}/reset-password")
+def reset_admin_author_password(account_id: int) -> dict[str, Any]:
+    salt, digest = password_hash(INITIAL_DEVELOPER_PASSWORD)
+    now = utc_now()
+    with db() as conn:
+        result = conn.execute(
+            """
+            UPDATE developer_accounts
+            SET password_salt = ?, password_hash = ?, must_change_password = 1, updated_at = ?
+            WHERE id = ?
+            """,
+            (salt, digest, now, account_id),
+        )
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="作者账号不存在")
+        conn.execute(
+            "DELETE FROM developer_sessions WHERE account_id = ?",
+            (account_id,),
+        )
+        return account_with_place_count(conn, account_id)
 
 
 @app.post("/api/admin/places", response_model=Place)

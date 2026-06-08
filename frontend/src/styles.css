@@ -455,6 +455,7 @@ body.map-day .btn.secondary {
 
 .list {
   display: grid;
+  align-content: start;
   gap: 10px;
   flex: 1 1 auto;
   min-height: 0;
@@ -1039,7 +1040,7 @@ body:not(.map-day) .gm-style .gm-ui-hover-effect {
 
 .admin-menu {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
@@ -1326,6 +1327,113 @@ body.map-day .review-preview {
   font-weight: 800;
 }
 
+.author-admin,
+.author-list {
+  display: grid;
+  gap: 10px;
+}
+
+.author-create,
+.author-item {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-card);
+}
+
+.author-create {
+  grid-template-columns: 1fr 1fr;
+}
+
+.author-list {
+  min-height: 0;
+  overflow: auto;
+}
+
+.author-item-head,
+.author-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.author-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.check-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.check-field input {
+  width: 17px;
+  height: 17px;
+}
+
+.developer-page {
+  min-height: 100dvh;
+  padding: 32px;
+  background: var(--bg);
+}
+
+.developer-auth-card,
+.developer-workspace {
+  width: min(100%, 920px);
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.developer-auth-card {
+  display: grid;
+  gap: 18px;
+  width: min(100%, 440px);
+  margin-top: clamp(40px, 12vh, 120px);
+  padding: 28px;
+}
+
+.developer-auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.developer-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: calc(100dvh - 64px);
+  padding: 22px;
+  overflow: hidden;
+}
+
+.developer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.developer-menu {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.developer-workspace .admin-module {
+  overflow: auto;
+}
+
 .inline-results {
   max-height: 300px;
   margin-top: 2px;
@@ -1527,12 +1635,40 @@ body.map-day .review-preview {
     overflow: hidden;
   }
 
-  .admin-grid.admin-bulk-mode .admin-panel {
+  .admin-grid.admin-full-panel-mode .admin-panel {
     height: 100dvh;
   }
 
-  .admin-grid.admin-bulk-mode .map-stage {
+  .admin-grid.admin-full-panel-mode .map-stage {
     display: none;
+  }
+
+  .author-create,
+  .author-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .developer-page {
+    padding: 0;
+  }
+
+  .developer-auth-card,
+  .developer-workspace {
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .developer-auth-card {
+    min-height: 100dvh;
+    margin: 0;
+    padding: 24px 18px;
+    align-content: center;
+  }
+
+  .developer-workspace {
+    height: 100dvh;
+    padding: 16px;
   }
 
   .admin-toolbar {

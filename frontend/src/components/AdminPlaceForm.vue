@@ -5,6 +5,8 @@ import { renderReviewHtml } from "../utils/review";
 
 const props = defineProps({
   form: { type: Object, required: true },
+  authorOptions: { type: Array, default: () => [] },
+  authorLocked: { type: Boolean, default: false },
 });
 
 defineEmits(["save", "new", "delete"]);
@@ -105,7 +107,10 @@ function insertReviewImage() {
     </div>
     <div class="field">
       <label for="ratingAuthor">评分作者</label>
-      <input id="ratingAuthor" v-model="form.rating_author" placeholder="吕俊泽 / DuskRain">
+      <select v-if="authorOptions.length" id="ratingAuthor" v-model="form.rating_author" :disabled="authorLocked">
+        <option v-for="author in authorOptions" :key="author" :value="author">{{ author }}</option>
+      </select>
+      <input v-else id="ratingAuthor" v-model="form.rating_author" :readonly="authorLocked" placeholder="吕俊泽 / DuskRain">
     </div>
     <div class="field">
       <label for="recommendLevel">推荐等级</label>

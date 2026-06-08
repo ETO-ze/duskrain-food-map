@@ -12,6 +12,9 @@ const markerClusters = shallowRef([]);
 const categories = ref([]);
 const recommendLevels = ref([]);
 const filters = ref({ category: "", recommend: "", city: "", author: "" });
+const nearbyMode = ref(false);
+const userLocation = ref(null);
+const actionMessage = ref("");
 const mapTheme = ref("day");
 const sidebarCollapsed = ref(false);
 const initialPlaceFocused = ref(false);
@@ -46,8 +49,32 @@ const visiblePlaces = computed(() => {
     if (filters.value.author && place.rating_author !== filters.value.author) return false;
     return true;
   });
+  if (nearbyMode.value && userLocation.value) {
+    const withDistance = filtered
+      .map((place) => ({
+        ...place,
+        distanceKm: distanceKm(
+          userLocation.value.lng,
+          userLocation.value.lat,
+          Number(place.lng),
+          Number(place.lat),
+        ),
+      }))
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+    const inRange = withDistance.filter((place) => place.distanceKm <= 30);
+    return inRange.length ? inRange : withDistance.slice(0, 10);
+  }
   return [...filtered].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
 });
+
+function distanceKm(lng1, lat1, lng2, lat2) {
+  const radians = (value) => value * Math.PI / 180;
+  const dLat = radians(lat2 - lat1);
+  const dLng = radians(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 function isMobile() {
   return window.matchMedia("(max-width: 860px)").matches;
@@ -204,6 +231,46 @@ function fitAll() {
 
 function refreshVisiblePlaces() {
   renderMarkers();
+}
+
+function findNearby() {
+  if (nearbyMode.value) {
+    nearbyMode.value = false;
+    actionMessage.value = "";
+    refreshVisiblePlaces();
+    return;
+  }
+  if (!navigator.geolocation) {
+    actionMessage.value = "当前设备不支持定位。";
+    return;
+  }
+  actionMessage.value = "正在获取位置...";
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      userLocation.value = {
+        lng: Number(position.coords.longitude),
+        lat: Number(position.coords.latitude),
+      };
+      nearbyMode.value = true;
+      actionMessage.value = "已按距离显示附近店家。";
+      refreshVisiblePlaces();
+      if (visiblePlaces.value[0]) schedule(() => focusPlace(visiblePlaces.value[0]), 120);
+    },
+    () => {
+      actionMessage.value = "定位失败，请检查浏览器定位权限。";
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
+  );
+}
+
+function randomPlace() {
+  if (!visiblePlaces.value.length) {
+    actionMessage.value = "当前筛选条件下没有可选店家。";
+    return;
+  }
+  const target = visiblePlaces.value[Math.floor(Math.random() * visiblePlaces.value.length)];
+  actionMessage.value = `随机选中：${target.name}`;
+  focusPlace(target);
 }
 
 function focusInitialPlace() {
@@ -478,9 +545,10 @@ onUnmounted(() => {
       </section>
 
       <div class="button-row">
-        <button class="btn secondary" type="button" @click="fitAll">显示全部</button>
-        <a class="btn secondary" href="/food-map/admin/">管理</a>
+        <button class="btn secondary" type="button" @click="findNearby">{{ nearbyMode ? "取消附近" : "附近店家" }}</button>
+        <button class="btn secondary" type="button" @click="randomPlace">随机探店</button>
       </div>
+      <div v-if="actionMessage" class="status-line">{{ actionMessage }}</div>
 
       <section class="list" aria-live="polite">
         <article v-if="error" class="place-item">
@@ -499,6 +567,7 @@ onUnmounted(() => {
           </div>
           <div class="subtle">{{ formatAddress(place) }}</div>
           <div class="pill-row">
+            <span v-if="place.distanceKm != null" class="pill">{{ place.distanceKm.toFixed(1) }} 公里</span>
             <span v-if="place.my_category" class="pill">{{ place.my_category }}</span>
             <span v-if="place.recommend_level" class="pill">{{ place.recommend_level }}</span>
             <span class="pill">美食评价</span>

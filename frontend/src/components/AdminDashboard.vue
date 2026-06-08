@@ -1,12 +1,13 @@
 <script setup>
-import { nextTick, onMounted, onUnmounted, reactive, ref, shallowRef } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, shallowRef } from "vue";
+import AdminAuthors from "./AdminAuthors.vue";
 import AdminBulkImport from "./AdminBulkImport.vue";
 import AdminMenu from "./AdminMenu.vue";
 import AdminPlaceForm from "./AdminPlaceForm.vue";
 import AdminPlaceList from "./AdminPlaceList.vue";
 import AdminPoiSearch from "./AdminPoiSearch.vue";
 import AdminSettings from "./AdminSettings.vue";
-import { deleteAdminPlace, getAdminPlaces, getPoiDetail, reverseGeocode, saveAdminPlace } from "../utils/api";
+import { deleteAdminPlace, getAdminAuthors, getAdminPlaces, getPoiDetail, reverseGeocode, saveAdminPlace } from "../utils/api";
 import {
   fetchGooglePlace,
   googleMarkerContent,
@@ -18,6 +19,8 @@ import { applyMapLabels, applyMovingMapFeatures, hydrateDeferredImages, infoHtml
 const activeModule = ref("list");
 const statusLine = ref("");
 const places = ref([]);
+const authors = ref([]);
+const authorOptions = computed(() => authors.value.map((author) => author.author_name));
 const markers = shallowRef([]);
 const labels = shallowRef([]);
 const markerLayer = shallowRef(null);
@@ -146,6 +149,14 @@ function readPayload() {
 async function loadPlaces() {
   places.value = await getAdminPlaces();
   await nextTick();
+}
+
+async function loadAuthors() {
+  authors.value = await getAdminAuthors();
+}
+
+async function refreshAuthors() {
+  await Promise.all([loadAuthors(), loadPlaces()]);
 }
 
 async function handleBulkCompleted(createdPlaces) {
@@ -608,7 +619,7 @@ async function savePlace() {
     const saved = await saveAdminPlace(readPayload(), form.id);
     fillFromPlace(saved);
     setStatus("已保存");
-    await loadPlaces();
+    await Promise.all([loadPlaces(), loadAuthors()]);
     activeModule.value = "edit";
   } catch (error) {
     if (error.status === 409 && error.detail?.existing) {
@@ -656,6 +667,7 @@ function handleZoomEnd() {
 onMounted(async () => {
   try {
     document.body.classList.add("map-day");
+    await Promise.all([loadPlaces(), loadAuthors()]);
     AMapRef.value = await loadAmap();
     map.value = new AMapRef.value.Map("adminMap", {
       ...mapOptions({
@@ -692,7 +704,6 @@ onMounted(async () => {
     });
     map.value.on("hotspotclick", addFromHotspotClick);
     map.value.on("click", addFromMapClick);
-    await loadPlaces();
   } catch (error) {
     setStatus(error.message);
   }
@@ -756,7 +767,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="admin-grid" :class="{ 'admin-bulk-mode': activeModule === 'bulk' }">
+  <main class="admin-grid" :class="{ 'admin-full-panel-mode': ['bulk', 'authors'].includes(activeModule) }">
     <aside class="admin-panel">
       <header>
         <p class="eyebrow">FOOD MAP ADMIN</p>
@@ -789,9 +800,16 @@ onUnmounted(() => {
       <AdminPlaceForm
         v-if="activeModule === 'edit'"
         :form="form"
+        :author-options="authorOptions"
         @save="savePlace"
         @new="resetForm"
         @delete="removePlace"
+      />
+      <AdminAuthors
+        v-if="activeModule === 'authors'"
+        :authors="authors"
+        @refresh="refreshAuthors"
+        @status="setStatus"
       />
       <AdminSettings
         v-if="activeModule === 'settings'"

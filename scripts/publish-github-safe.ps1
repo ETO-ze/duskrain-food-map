@@ -62,7 +62,7 @@ $secretPatterns = @(
     "xox[baprs]-[0-9A-Za-z-]{20,}",
     "-----BEGIN [A-Z ]*PRIVATE KEY-----",
     "(?i)bearer\s+[0-9A-Za-z._-]{24,}",
-    "(?i)(password|passwd|secret|access[_-]?token)\s*[:=]\s*['""]?(?!CHANGE_ME|YOUR_|<)[^\s'""]{8,}"
+    "(?i)(password|passwd|secret|access[_-]?token)\s*[:=]\s*['""](?!CHANGE_ME|YOUR_|<)[^'""]{8,}['""]"
 )
 
 function Get-PublishFiles {

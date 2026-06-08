@@ -22,6 +22,17 @@
 - 国内坐标：GCJ-02。
 - 海外坐标：WGS84。
 
+## 管理权限
+
+- `/food-map/admin/` 是超级管理员后台，继续由 Authelia + Google TOTP 保护。
+- `/food-map/developer/` 是独立作者工作台，使用应用内账号与 HttpOnly 会话 Cookie。
+- 六个初始作者账号：`adminljz`、`adminlxy`、`admingjdtddd`、`adminwyz`、`adminczk`、`adminly`。
+- 初始账号首次登录必须修改临时密码，之后才能访问店家接口。
+- 普通作者只能读取、创建、修改和删除 `rating_author` 等于本人作者名的记录；后端强制覆盖提交的作者字段。
+- 超级管理员可以创建、停用、重命名、重置作者账号；重命名时同步迁移已有店家归属。
+- 同一 POI 不同作者允许并存，同一作者同店家仍执行去重。
+- 密码使用 PBKDF2-HMAC-SHA256，令牌仅以 SHA-256 哈希保存；连续登录失败有限流。
+
 ## 地图实现
 
 ### 国内高德

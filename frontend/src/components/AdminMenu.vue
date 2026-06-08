@@ -10,6 +10,7 @@ const items = [
   ["search", "搜索导入"],
   ["bulk", "批量新建"],
   ["edit", "编辑资料"],
+  ["authors", "作者账号"],
   ["settings", "地图设置"],
 ];
 </script>
