@@ -35,6 +35,7 @@ $publishPaths = @(
     "frontend/package.json",
     "frontend/package-lock.json",
     "frontend/vite.config.js",
+    "frontend/scripts",
     "frontend/src",
     "scripts",
     "Publish to GitHub.cmd"
@@ -81,7 +82,7 @@ function Get-PublishFiles {
 }
 
 function Assert-PublishFilesSafe {
-    $textExtensions = @(".css", ".html", ".js", ".json", ".md", ".ps1", ".py", ".txt", ".vue", ".yml", ".yaml", ".cmd")
+    $textExtensions = @(".css", ".html", ".js", ".mjs", ".json", ".md", ".ps1", ".py", ".txt", ".vue", ".yml", ".yaml", ".cmd")
     $rootPrefix = $ProjectRoot.TrimEnd("\") + "\"
     foreach ($file in Get-PublishFiles) {
         $relative = $file.FullName
