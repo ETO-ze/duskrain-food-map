@@ -1039,7 +1039,7 @@ body:not(.map-day) .gm-style .gm-ui-hover-effect {
 
 .admin-menu {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
 }
 
@@ -1199,6 +1199,122 @@ body.map-day .review-preview {
   gap: 8px;
   max-height: 340px;
   overflow: auto;
+}
+
+.bulk-import {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bulk-rule {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 82%, var(--cyan) 18%);
+}
+
+.bulk-rule span,
+.bulk-rule small {
+  color: var(--muted);
+}
+
+.bulk-input {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+.bulk-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.bulk-summary .is-created,
+.bulk-row.is-created .bulk-row-message {
+  color: #31c48d;
+}
+
+.bulk-summary .is-duplicate,
+.bulk-row.is-duplicate .bulk-row-message {
+  color: #f6c344;
+}
+
+.bulk-summary .is-failed,
+.bulk-row.is-failed .bulk-row-message,
+.bulk-row.is-invalid .subtle {
+  color: #ff7d89;
+}
+
+.bulk-preview {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.bulk-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+}
+
+.bulk-row.is-searching {
+  border-color: color-mix(in srgb, var(--cyan) 70%, transparent);
+}
+
+.bulk-row.is-created {
+  border-color: color-mix(in srgb, #31c48d 55%, transparent);
+}
+
+.bulk-row.is-duplicate {
+  border-color: color-mix(in srgb, #f6c344 48%, transparent);
+}
+
+.bulk-row.is-failed,
+.bulk-row.is-invalid {
+  border-color: color-mix(in srgb, #ff7d89 50%, transparent);
+}
+
+.bulk-row-check {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.bulk-row-check input {
+  width: 17px;
+  height: 17px;
+}
+
+.bulk-row-main {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.bulk-row-main strong,
+.bulk-row-main span {
+  overflow-wrap: anywhere;
+}
+
+.bulk-row-message {
+  font-size: 0.8rem;
+  font-weight: 800;
 }
 
 .inline-results {
@@ -1389,12 +1505,20 @@ body.map-day .review-preview {
     overflow: hidden;
   }
 
+  .admin-grid.admin-bulk-mode .admin-panel {
+    height: 100dvh;
+  }
+
+  .admin-grid.admin-bulk-mode .map-stage {
+    display: none;
+  }
+
   .admin-toolbar {
     grid-template-columns: 1fr 1fr;
   }
 
   .admin-menu {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .admin-toolbar .btn {

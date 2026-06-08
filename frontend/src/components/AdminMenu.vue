@@ -8,6 +8,7 @@ defineEmits(["change"]);
 const items = [
   ["list", "店家库"],
   ["search", "搜索导入"],
+  ["bulk", "批量新建"],
   ["edit", "编辑资料"],
   ["settings", "地图设置"],
 ];

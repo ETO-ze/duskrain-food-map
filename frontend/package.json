@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite --host 0.0.0.0"
+    "dev": "vite --host 0.0.0.0",
+    "test:bulk-import": "node scripts/test-bulk-import.mjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.17.0",

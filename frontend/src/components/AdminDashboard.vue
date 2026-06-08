@@ -1,5 +1,6 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, reactive, ref, shallowRef } from "vue";
+import AdminBulkImport from "./AdminBulkImport.vue";
 import AdminMenu from "./AdminMenu.vue";
 import AdminPlaceForm from "./AdminPlaceForm.vue";
 import AdminPlaceList from "./AdminPlaceList.vue";
@@ -145,6 +146,11 @@ function readPayload() {
 async function loadPlaces() {
   places.value = await getAdminPlaces();
   await nextTick();
+}
+
+async function handleBulkCompleted(createdPlaces) {
+  await loadPlaces();
+  if (createdPlaces?.length) fillFromPlace(createdPlaces[createdPlaces.length - 1]);
 }
 
 function renderMarkers() {
@@ -750,7 +756,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="admin-grid">
+  <main class="admin-grid" :class="{ 'admin-bulk-mode': activeModule === 'bulk' }">
     <aside class="admin-panel">
       <header>
         <p class="eyebrow">FOOD MAP ADMIN</p>
@@ -773,6 +779,12 @@ onUnmounted(() => {
         @select-candidate="selectCandidate"
         @status="setStatus"
         @provider-change="showMapProvider"
+      />
+      <AdminBulkImport
+        v-if="activeModule === 'bulk'"
+        :places="places"
+        @completed="handleBulkCompleted"
+        @status="setStatus"
       />
       <AdminPlaceForm
         v-if="activeModule === 'edit'"

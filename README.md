@@ -34,6 +34,9 @@ DuskRain 吕其林美食指南是一个自用的跨地图美食资料库。国�
 
 - 国内高德地图和海外 Google Maps 分离展示。
 - 管理端支持高德、Google Places 搜索候选店铺并点击加入。
+- 管理端支持粘贴“编号. 店名 城市或地址 评分”清单，一键匹配高德 POI、补全资料并批量新建。
+- 批量新建默认评分作者为吕俊泽，评分不低于 8.0 自动归为“推荐”，低于 8.0 归为“一般”。
+- 批量新建会跳过重复 POI，并把未可靠匹配的项目留在结果列表中供人工处理。
 - Google 管理端提供 249 个国家和地区的中英文快速选择。
 - 支持直接点击地图 POI 导入商家，点击空白位置反向解析地址。
 - 自动保存平台 POI ID、地址、电话、营业时间、类型、坐标和平台详情链接。
@@ -114,6 +117,12 @@ npm run dev
 npm run build
 ```
 
+验证批量清单解析：
+
+```powershell
+npm run test:bulk-import
+```
+
 ## 安全发布到 GitHub
 
 首次使用时双击：
@@ -144,6 +153,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish-github-safe.ps1 -Audi
 - [frontend/src/components/PublicMap.vue](frontend/src/components/PublicMap.vue)：国内地图。
 - [frontend/src/components/GlobalMap.vue](frontend/src/components/GlobalMap.vue)：海外地图。
 - [frontend/src/components/AdminDashboard.vue](frontend/src/components/AdminDashboard.vue)：管理端总控。
+- [frontend/src/components/AdminBulkImport.vue](frontend/src/components/AdminBulkImport.vue)：批量解析、匹配、去重和新建。
 - [frontend/src/utils/google-map.js](frontend/src/utils/google-map.js)：Google Maps、Places 和坐标转换。
 - [docs/PROJECT_MEMORY.md](docs/PROJECT_MEMORY.md)：项目长期技术记忆。
 - [docs/google-maps-notes.md](docs/google-maps-notes.md)：Google Maps 接入决策。
