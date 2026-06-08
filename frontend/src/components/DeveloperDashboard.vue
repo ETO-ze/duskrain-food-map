@@ -1,8 +1,10 @@
 <script setup>
 import { onMounted, reactive, ref } from "vue";
+import AdminBulkImport from "./AdminBulkImport.vue";
 import AdminPlaceForm from "./AdminPlaceForm.vue";
 import AdminPlaceList from "./AdminPlaceList.vue";
 import AdminPoiSearch from "./AdminPoiSearch.vue";
+import DeveloperMapPicker from "./DeveloperMapPicker.vue";
 import {
   changeDeveloperPassword,
   deleteDeveloperPlace,
@@ -107,6 +109,11 @@ function readPayload() {
 
 async function loadPlaces() {
   places.value = await getDeveloperPlaces();
+}
+
+async function handleBulkCompleted(createdPlaces) {
+  await loadPlaces();
+  if (createdPlaces?.length) fillFromPlace(createdPlaces[createdPlaces.length - 1]);
 }
 
 async function login() {
@@ -262,6 +269,8 @@ onMounted(async () => {
       <nav class="developer-menu" aria-label="作者管理菜单">
         <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'list' }" type="button" @click="activeModule = 'list'">我的店家</button>
         <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'search' }" type="button" @click="activeModule = 'search'">搜索新建</button>
+        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'map' }" type="button" @click="activeModule = 'map'">地图选点</button>
+        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'bulk' }" type="button" @click="activeModule = 'bulk'">批量新建</button>
         <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'edit' }" type="button" @click="resetForm">编辑资料</button>
       </nav>
 
@@ -277,6 +286,21 @@ onMounted(async () => {
         :places="places"
         @select-place="selectPlace"
         @select-candidate="selectCandidate"
+        @status="setStatus"
+      />
+      <DeveloperMapPicker
+        v-if="activeModule === 'map'"
+        :places="places"
+        @select-place="selectPlace"
+        @select-candidate="selectCandidate"
+        @status="setStatus"
+      />
+      <AdminBulkImport
+        v-if="activeModule === 'bulk'"
+        :places="places"
+        :fixed-author="session.author_name"
+        :save-place-handler="saveDeveloperPlace"
+        @completed="handleBulkCompleted"
         @status="setStatus"
       />
       <AdminPlaceForm

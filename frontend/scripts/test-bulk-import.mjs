@@ -88,6 +88,18 @@ if (explicitRecommendations[2].recommend_level !== "推荐" || explicitRecommend
   throw new Error(`Default recommendation parsing failed: ${JSON.stringify(explicitRecommendations[2])}`);
 }
 
+const fixedAuthorRows = parseBulkPlaceText(`1 喜家德（凯德广场店） 哈尔滨 8.2 推荐 连锁家常
+2 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 9.1 必去 烧烤`, {
+  fixedAuthor: "雷洋",
+});
+if (
+  fixedAuthorRows.some((row) => row.rating_author !== "雷洋")
+  || fixedAuthorRows[0].my_category !== "连锁家常"
+  || fixedAuthorRows[1].my_category !== "烧烤"
+) {
+  throw new Error(`Fixed-author parsing failed: ${JSON.stringify(fixedAuthorRows)}`);
+}
+
 console.table(rows.map(({ lineNumber, name, city, address, note, rating, recommend_level }) => ({
   lineNumber,
   name,

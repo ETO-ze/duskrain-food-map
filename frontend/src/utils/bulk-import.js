@@ -67,22 +67,25 @@ export function recommendationForRating(rating) {
   return Number(rating) >= 8 ? "推荐" : "一般";
 }
 
-export function parseBulkPlaceLine(source, lineNumber = 1) {
+export function parseBulkPlaceLine(source, lineNumber = 1, options = {}) {
   const original = String(source || "").trim();
   if (!original) return null;
   let text = original
     .replace(/^\s*\d+\s*(?:[.、)）]\s*|\s+)/, "")
     .replace(/\s+/g, " ")
     .trim();
-  const ratingMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:(必去|推荐|一般|避雷)(?:\s+(\S+)(?:\s+(.+))?)?)?\s*$/);
+  const fixedAuthor = String(options.fixedAuthor || "").trim();
+  const ratingMatch = fixedAuthor
+    ? text.match(/(\d+(?:\.\d+)?)\s*(?:(必去|推荐|一般|避雷)(?:\s+(.+))?)?\s*$/)
+    : text.match(/(\d+(?:\.\d+)?)\s*(?:(必去|推荐|一般|避雷)(?:\s+(\S+)(?:\s+(.+))?)?)?\s*$/);
   if (!ratingMatch) {
     return { lineNumber, original, enabled: false, error: "末尾缺少评分或推荐等级格式不正确", status: "invalid" };
   }
 
   const rating = Number(ratingMatch[1]);
   const explicitRecommendation = ratingMatch[2] || "";
-  const ratingAuthor = String(ratingMatch[3] || "吕俊泽").trim();
-  const category = String(ratingMatch[4] || "").trim();
+  const ratingAuthor = fixedAuthor || String(ratingMatch[3] || "吕俊泽").trim();
+  const category = String(fixedAuthor ? ratingMatch[3] || "" : ratingMatch[4] || "").trim();
   text = text.slice(0, ratingMatch.index).trim();
   if (!text || !Number.isFinite(rating) || rating < 0 || rating > 10) {
     return { lineNumber, original, enabled: false, error: "店名为空或评分不在 0-10", status: "invalid" };
@@ -123,10 +126,10 @@ export function parseBulkPlaceLine(source, lineNumber = 1) {
   };
 }
 
-export function parseBulkPlaceText(text) {
+export function parseBulkPlaceText(text, options = {}) {
   return String(text || "")
     .split(/\r?\n/)
-    .map((line, index) => parseBulkPlaceLine(line, index + 1))
+    .map((line, index) => parseBulkPlaceLine(line, index + 1, options))
     .filter(Boolean);
 }
 

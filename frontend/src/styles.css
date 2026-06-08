@@ -1426,12 +1426,33 @@ body.map-day .review-preview {
 
 .developer-menu {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
 }
 
 .developer-workspace .admin-module {
   overflow: auto;
+}
+
+.developer-map-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden !important;
+}
+
+.developer-picker-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 380px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.developer-picker-frame .map-canvas {
+  position: absolute;
+  inset: 0;
 }
 
 .inline-results {
@@ -1669,6 +1690,14 @@ body.map-day .review-preview {
   .developer-workspace {
     height: 100dvh;
     padding: 16px;
+  }
+
+  .developer-menu {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .developer-picker-frame {
+    min-height: 52dvh;
   }
 
   .admin-toolbar {

@@ -16,6 +16,9 @@ const sidebarCollapsed = ref(false);
 const showDomesticPlaces = ref(false);
 const mapTheme = ref("day");
 const error = ref("");
+const nearbyMode = ref(false);
+const userLocation = ref(null);
+const actionMessage = ref("");
 
 const globalPlaces = computed(() => places.value.filter((place) => place.map_provider === "google"));
 const domesticPlaces = computed(() => places.value.filter((place) => (place.map_provider || "amap") === "amap"));
@@ -23,7 +26,7 @@ const availablePlaces = computed(() => [
   ...globalPlaces.value,
   ...(showDomesticPlaces.value ? domesticPlaces.value : []),
 ]);
-const visiblePlaces = computed(() => availablePlaces.value
+const filteredPlaces = computed(() => availablePlaces.value
   .filter((place) => {
     if (filters.value.mapCategory && placeCategory(place) !== filters.value.mapCategory) return false;
     if (filters.value.city && place.city !== filters.value.city) return false;
@@ -31,6 +34,14 @@ const visiblePlaces = computed(() => availablePlaces.value
     return true;
   })
   .sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0)));
+const visiblePlaces = computed(() => {
+  if (!nearbyMode.value || !userLocation.value) return filteredPlaces.value;
+  const ranked = filteredPlaces.value
+    .map((place) => ({ place, distance: distanceKm(userLocation.value, placePosition(place)) }))
+    .sort((a, b) => a.distance - b.distance);
+  const nearby = ranked.filter((item) => item.distance <= 30);
+  return (nearby.length ? nearby : ranked.slice(0, 10)).map((item) => item.place);
+});
 const mapCategoryOptions = computed(() => [...new Set(availablePlaces.value
   .map(placeCategory)
   .filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-CN")));
@@ -53,6 +64,17 @@ function placePosition(place) {
     return gcj02ToWgs84(place.lng, place.lat);
   }
   return { lat: Number(place.lat), lng: Number(place.lng) };
+}
+
+function distanceKm(left, right) {
+  const radius = 6371;
+  const lat1 = Number(left.lat) * Math.PI / 180;
+  const lat2 = Number(right.lat) * Math.PI / 180;
+  const dLat = lat2 - lat1;
+  const dLng = (Number(right.lng) - Number(left.lng)) * Math.PI / 180;
+  const value = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return radius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
 
 function isMobile() {
@@ -129,6 +151,47 @@ async function focusPlace(place, fixedPosition = null, anchor = null) {
     ? { map: map.value, anchor, shouldFocus: false }
     : { map: map.value, position, shouldFocus: false });
   hydrateDeferredImages();
+}
+
+async function findNearby() {
+  if (nearbyMode.value) {
+    nearbyMode.value = false;
+    userLocation.value = null;
+    actionMessage.value = "";
+    await renderMarkers();
+    return;
+  }
+  if (!navigator.geolocation) {
+    actionMessage.value = "当前浏览器不支持定位。";
+    return;
+  }
+  actionMessage.value = "正在获取位置...";
+  navigator.geolocation.getCurrentPosition(async (position) => {
+    userLocation.value = {
+      lng: Number(position.coords.longitude),
+      lat: Number(position.coords.latitude),
+    };
+    nearbyMode.value = true;
+    actionMessage.value = "已按距离显示附近店家。";
+    await renderMarkers();
+    if (visiblePlaces.value[0]) await focusPlace(visiblePlaces.value[0]);
+  }, () => {
+    actionMessage.value = "定位失败，请检查浏览器定位权限。";
+  }, {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 300000,
+  });
+}
+
+async function randomPlace() {
+  if (!visiblePlaces.value.length) {
+    actionMessage.value = "当前筛选条件下没有可选店家。";
+    return;
+  }
+  const place = visiblePlaces.value[Math.floor(Math.random() * visiblePlaces.value.length)];
+  actionMessage.value = `随机选择：${place.name}`;
+  await focusPlace(place);
 }
 
 async function syncDomesticPlaces() {
@@ -277,9 +340,10 @@ onUnmounted(() => {
         </div>
       </section>
       <div class="button-row">
-        <button class="btn secondary" type="button" @click="fitAll">显示全部</button>
-        <a class="btn secondary" href="/food-map/admin/">管理</a>
+        <button class="btn secondary" type="button" @click="findNearby">{{ nearbyMode ? "取消附近" : "附近店家" }}</button>
+        <button class="btn secondary" type="button" @click="randomPlace">随机探店</button>
       </div>
+      <div v-if="actionMessage" class="status-line">{{ actionMessage }}</div>
       <section class="list">
         <article v-if="error" class="place-item"><p class="subtle">{{ error }}</p></article>
         <article v-else-if="!visiblePlaces.length" class="place-item">
