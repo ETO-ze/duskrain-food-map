@@ -48,7 +48,7 @@ function placePayload(detail, row) {
     provider_detail_url: detail.provider_detail_url || detail.amap_detail_url || "",
     my_category: "",
     rating: row.rating,
-    rating_author: "吕俊泽",
+    rating_author: row.rating_author || "吕俊泽",
     recommend_level: row.recommend_level,
     review_url: "",
     review_text: "",
@@ -150,14 +150,14 @@ function clearInput() {
     </div>
     <div class="bulk-rule">
       <strong>输入格式</strong>
-      <span>编号 店名 城市或详细地址 评分 推荐等级</span>
-      <small>推荐等级支持“必去 / 推荐 / 一般 / 避雷”。未填写时，评分 ≥ 8.0 默认为“推荐”，评分 &lt; 8.0 默认为“一般”。</small>
+      <span>编号 店名 城市或详细地址 评分 推荐等级 作者</span>
+      <small>推荐等级支持“必去 / 推荐 / 一般 / 避雷”。推荐等级和作者未填写时，按评分规则并默认使用吕俊泽。</small>
     </div>
     <textarea
       v-model="rawText"
       class="bulk-input"
       :disabled="isRunning"
-      placeholder="1 喜家德（凯德广场店） 哈尔滨 8.2 推荐&#10;2 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 9.1 必去&#10;3 富都美食 哈尔滨 量大便宜 8.6"
+      placeholder="1 喜家德（凯德广场店） 哈尔滨 8.2 推荐 吕俊泽&#10;2 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 9.1 必去 吕俊泽&#10;3 富都美食 哈尔滨 量大便宜 8.6"
     ></textarea>
     <div class="button-row">
       <button class="btn" type="button" :disabled="!readyCount || isRunning" @click="importAll">
@@ -189,6 +189,7 @@ function clearInput() {
             <span class="pill-row">
               <span class="rating">{{ row.rating }} / 10</span>
               <span class="pill">{{ row.recommend_level }}</span>
+              <span class="pill">作者：{{ row.rating_author }}</span>
               <span v-if="row.recommendation_defaulted" class="pill">默认</span>
               <span v-if="row.matchedName" class="pill">匹配：{{ row.matchedName }}</span>
             </span>
