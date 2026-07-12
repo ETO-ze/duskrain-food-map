@@ -46,6 +46,8 @@ $blockedPathPatterns = @(
     "^backups/",
     "^data/",
     "^reports/",
+    "^output/",
+    "^\.playwright-cli/",
     "^static/",
     "^frontend/node_modules/",
     "^frontend/dist/",

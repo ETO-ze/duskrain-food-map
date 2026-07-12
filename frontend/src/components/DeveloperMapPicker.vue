@@ -1,6 +1,6 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref, shallowRef } from "vue";
-import { getPoiDetail, reverseGeocode } from "../utils/api";
+import { getDeveloperPoiDetail, reverseGeocodeForDeveloper } from "../utils/api";
 import { fetchGooglePlace, loadGoogleMaps, reverseGeocodeGoogle } from "../utils/google-map";
 import { applyMapLabels, loadAmap, mapOptions } from "../utils/map";
 
@@ -29,7 +29,7 @@ function findExisting(candidate) {
   });
 }
 
-function chooseCandidate(candidate) {
+function chooseCandidate(candidate, statusMessage = "") {
   const existing = findExisting(candidate);
   if (existing) {
     emit("status", `你已添加过：${existing.name}，已切换到现有记录。`);
@@ -37,6 +37,10 @@ function chooseCandidate(candidate) {
     return;
   }
   emit("select-candidate", candidate);
+  emit(
+    "status",
+    statusMessage || `已选中：${candidate.name || candidate.address || "地图位置"}，请补充评价后保存。`,
+  );
 }
 
 function distanceScore(candidate, lng, lat) {
@@ -91,12 +95,14 @@ async function selectAmapPoint(event) {
   if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
   emit("status", "正在读取地图点击位置附近的高德商家...");
   try {
-    const data = await reverseGeocode(lng.toFixed(6), lat.toFixed(6));
+    const data = await reverseGeocodeForDeveloper(lng.toFixed(6), lat.toFixed(6));
     const candidate = bestNearbyCandidate(data.items, lng, lat) || manualAmapCandidate(lng, lat, data);
     chooseCandidate(candidate);
   } catch (error) {
-    emit("status", `地址读取失败，已保留坐标：${error.message}`);
-    chooseCandidate(manualAmapCandidate(lng, lat));
+    chooseCandidate(
+      manualAmapCandidate(lng, lat),
+      `地址读取失败，已保留坐标：${error.message}`,
+    );
   }
 }
 
@@ -107,19 +113,18 @@ async function selectAmapHotspot(event) {
   if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
   emit("status", "正在读取点中的高德店铺详情...");
   try {
-    const detail = event.id ? await getPoiDetail(event.id) : null;
+    const detail = event.id ? await getDeveloperPoiDetail(event.id) : null;
     chooseCandidate(detail?.item || {
       ...manualAmapCandidate(lng, lat),
       provider_poi_id: event.id || "",
       name: event.name || "",
     });
   } catch (error) {
-    emit("status", `高德详情读取失败，已保留基础信息：${error.message}`);
     chooseCandidate({
       ...manualAmapCandidate(lng, lat),
       provider_poi_id: event.id || "",
       name: event.name || "",
-    });
+    }, `高德详情读取失败，已保留基础信息：${error.message}`);
   }
 }
 
@@ -152,7 +157,6 @@ async function initGoogleMap() {
       emit("status", "正在解析 Google 地图点击位置...");
       chooseCandidate(await reverseGeocodeGoogle({ lat, lng }));
     } catch (error) {
-      emit("status", `Google 地址读取失败，已保留坐标：${error.message}`);
       chooseCandidate({
         map_provider: "google",
         country_code: "",
@@ -171,7 +175,7 @@ async function initGoogleMap() {
         provider_detail_url: `https://www.google.com/maps?q=${lat},${lng}`,
         cover_image: "",
         image_urls: "",
-      });
+      }, `Google 地址读取失败，已保留坐标：${error.message}`);
     }
   });
 }

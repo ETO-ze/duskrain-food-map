@@ -1,3 +1,5 @@
+import { normalizeCategories } from "./categories.js";
+
 const CITY_ALIASES = [
   "哈尔滨阿城", "长白山", "哈尔滨", "齐齐哈尔", "牡丹江", "佳木斯", "大庆", "伊春",
   "天津", "北京", "上海", "重庆", "广州", "深圳", "佛山", "东莞", "珠海", "中山",
@@ -86,6 +88,7 @@ export function parseBulkPlaceLine(source, lineNumber = 1, options = {}) {
   const explicitRecommendation = ratingMatch[2] || "";
   const ratingAuthor = fixedAuthor || String(ratingMatch[3] || "吕俊泽").trim();
   const category = String(fixedAuthor ? ratingMatch[3] || "" : ratingMatch[4] || "").trim();
+  const categories = normalizeCategories([], category);
   text = text.slice(0, ratingMatch.index).trim();
   if (!text || !Number.isFinite(rating) || rating < 0 || rating > 10) {
     return { lineNumber, original, enabled: false, error: "店名为空或评分不在 0-10", status: "invalid" };
@@ -117,7 +120,8 @@ export function parseBulkPlaceLine(source, lineNumber = 1, options = {}) {
     note,
     rating,
     rating_author: ratingAuthor,
-    my_category: category,
+    my_category: categories[0] || "",
+    my_categories: categories,
     recommend_level: explicitRecommendation || recommendationForRating(rating),
     recommendation_defaulted: !explicitRecommendation,
     status: "ready",

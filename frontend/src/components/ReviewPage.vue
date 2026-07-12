@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { getPublicPlace } from "../utils/api";
+import { categoryText } from "../utils/categories";
 import { formatAddress, imageList } from "../utils/map";
 import { renderReviewHtml } from "../utils/review";
 
@@ -13,6 +14,7 @@ const error = ref("");
 const loading = ref(true);
 
 const ratingAuthor = computed(() => place.value?.rating_author || "吕俊泽");
+const categoryLabel = computed(() => categoryText(place.value) || place.value?.provider_category || "");
 const externalReviewUrl = computed(() => {
   const url = String(place.value?.review_url || "").trim();
   return /^https?:\/\//i.test(url) ? url : "";
@@ -69,9 +71,9 @@ onMounted(async () => {
           <span class="meta-label">推荐</span>
           <strong>{{ place.recommend_level }}</strong>
         </div>
-        <div v-if="place.my_category || place.provider_category">
+        <div v-if="categoryLabel">
           <span class="meta-label">分类</span>
-          <strong>{{ place.my_category || place.provider_category }}</strong>
+          <strong>{{ categoryLabel }}</strong>
         </div>
       </section>
 

@@ -5,13 +5,25 @@ const PLACE_CACHE_TTL = 5 * 60 * 1000;
 const CATEGORY_CACHE_TTL = 30 * 60 * 1000;
 
 async function readJson(response) {
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json().catch(() => null);
+  const redirectedToLogin = response.redirected && new URL(response.url).pathname.startsWith("/authelia/");
+  if (redirectedToLogin) {
+    const error = new Error("接口被超级管理员验证拦截，请重新登录或联系超级管理员");
+    error.status = 401;
+    error.detail = "Authentication redirect";
+    throw error;
+  }
   if (!response.ok) {
-    const detail = data.detail;
+    const detail = data?.detail;
     const message = typeof detail === "string" ? detail : detail?.message || "请求失败";
     const error = new Error(message);
     error.status = response.status;
     error.detail = detail;
+    throw error;
+  }
+  if (data === null) {
+    const error = new Error("接口返回格式异常，请稍后重试");
+    error.status = response.status;
     throw error;
   }
   return data;
@@ -59,6 +71,18 @@ async function cachedJson(url, key, ttl) {
   return data;
 }
 
+async function networkFirstJson(url, key, ttl) {
+  const cached = readCache(key, ttl);
+  try {
+    const data = await readJson(await fetch(url));
+    writeCache(key, data);
+    return data;
+  } catch (error) {
+    if (cached) return cached;
+    throw error;
+  }
+}
+
 function clearPublicPlaceCaches() {
   clearCachePrefix("places:");
   clearCachePrefix("place:");
@@ -74,7 +98,7 @@ export async function getPublicPlaces(filters = {}) {
   if (filters.category) params.set("category", filters.category);
   if (filters.recommend) params.set("recommend", filters.recommend);
   const query = params.toString();
-  return cachedJson(`${API_BASE}/places?${query}`, `places:${query}`, PLACES_CACHE_TTL);
+  return networkFirstJson(`${API_BASE}/places?${query}`, `places:${query}`, PLACES_CACHE_TTL);
 }
 
 export async function getPublicPlace(id) {
@@ -83,7 +107,7 @@ export async function getPublicPlace(id) {
 }
 
 export async function getCategories() {
-  return cachedJson(`${API_BASE}/categories`, "categories", CATEGORY_CACHE_TTL);
+  return networkFirstJson(`${API_BASE}/categories`, "categories", CATEGORY_CACHE_TTL);
 }
 
 export async function searchPoi(q, city) {
@@ -91,14 +115,29 @@ export async function searchPoi(q, city) {
   return readJson(await fetch(`${API_BASE}/search?${params.toString()}`));
 }
 
+export async function searchDeveloperPoi(q, city) {
+  const params = new URLSearchParams({ q, city: city || "" });
+  return readJson(await fetch(`${API_BASE}/developer/search?${params.toString()}`));
+}
+
 export async function getPoiDetail(id) {
   const params = new URLSearchParams({ id });
   return readJson(await fetch(`${API_BASE}/poi-detail?${params.toString()}`));
 }
 
+export async function getDeveloperPoiDetail(id) {
+  const params = new URLSearchParams({ id });
+  return readJson(await fetch(`${API_BASE}/developer/poi-detail?${params.toString()}`));
+}
+
 export async function reverseGeocode(lng, lat) {
   const params = new URLSearchParams({ lng: String(lng), lat: String(lat) });
   return readJson(await fetch(`${API_BASE}/regeo?${params.toString()}`));
+}
+
+export async function reverseGeocodeForDeveloper(lng, lat) {
+  const params = new URLSearchParams({ lng: String(lng), lat: String(lat) });
+  return readJson(await fetch(`${API_BASE}/developer/regeo?${params.toString()}`));
 }
 
 export async function getAdminPlaces() {

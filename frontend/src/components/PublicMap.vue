@@ -1,36 +1,52 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from "vue";
-import { List, Map as MapIcon, Moon, Sun } from "@lucide/vue";
+import { List, Map as MapIcon, MapPin, Moon, RotateCcw, ScanSearch, Shuffle, Sun } from "@lucide/vue";
 import { getCategories, getPublicPlaces } from "../utils/api";
-import { applyMapLabels, applyMovingMapFeatures, cityClusterHtml, clusterCountHtml, formatAddress, hydrateDeferredImages, imageList, infoHtml, loadAmap, loadAmapPlugin, mapOptions, scheduleCityMapPrewarm, schedulePlaceImagePreload, storeMarkerHtml } from "../utils/map";
+import { placeCategories } from "../utils/categories";
+import { applyMapLabels, applyMovingMapFeatures, cityClusterHtml, clusterCountHtml, formatAddress, hydrateDeferredImages, imageList, infoHtml, loadAmap, loadAmapPlugin, mapOptions, storeMarkerHtml } from "../utils/map";
 
 const AMapRef = shallowRef(null);
 const map = shallowRef(null);
 const infoWindow = shallowRef(null);
 const places = ref([]);
-const markerClusters = shallowRef([]);
+const markerCluster = shallowRef(null);
+const cityMarkers = shallowRef([]);
 const categories = ref([]);
 const recommendLevels = ref([]);
 const filters = ref({ category: "", recommend: "", city: "", author: "" });
 const nearbyMode = ref(false);
 const userLocation = ref(null);
+const viewportBounds = ref(null);
 const actionMessage = ref("");
 const mapTheme = ref("day");
 const sidebarCollapsed = ref(false);
+const sidePanelElement = ref(null);
+const listElement = ref(null);
+const mobileHeaderCollapsing = ref(false);
+const mobileHeaderCompact = ref(false);
+const mobileFilterHorizontal = ref(false);
 const initialPlaceFocused = ref(false);
 const error = ref("");
 const CITY_OVERVIEW_MAX_ZOOM = 7.5;
 let baseLabelTimer = 0;
 let baseLabelFollowupTimer = 0;
 let focusToken = 0;
+let placesRequestId = 0;
 let movingTimer = 0;
 let isMapMoving = false;
-let pointerStart = null;
-let pointerDragging = false;
-let mapElement = null;
+let activeMarkerMode = "";
+let storeMarkerData = [];
 let scaleControl = null;
+let mobileCollapseFrame = 0;
+let pendingMobileScrollTop = 0;
+let expandedMobileHeaderHeight = 0;
+let expandedMobileProviderHeight = 0;
+let expandedMobileToolbarHeight = 0;
+let expandedMobileActionsHeight = 0;
+let expandedMobileStatusHeight = 0;
 const pendingTimers = new Set();
 const singleMarkerHandlers = new WeakMap();
+const MOBILE_COLLAPSE_END = 215;
 
 const domesticPlaces = computed(() => places.value.filter((place) => (place.map_provider || "amap") === "amap"));
 
@@ -43,14 +59,24 @@ const authorOptions = computed(() => {
     .sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
 });
 
+const hasActiveFilters = computed(() => Object.values(filters.value).some(Boolean) || Boolean(viewportBounds.value));
+
 const visiblePlaces = computed(() => {
   const filtered = domesticPlaces.value.filter((place) => {
     if (filters.value.city && place.city !== filters.value.city) return false;
     if (filters.value.author && place.rating_author !== filters.value.author) return false;
     return true;
   });
+  const inViewport = viewportBounds.value
+    ? filtered.filter((place) => (
+      Number(place.lng) >= viewportBounds.value.minLng
+      && Number(place.lng) <= viewportBounds.value.maxLng
+      && Number(place.lat) >= viewportBounds.value.minLat
+      && Number(place.lat) <= viewportBounds.value.maxLat
+    ))
+    : filtered;
   if (nearbyMode.value && userLocation.value) {
-    const withDistance = filtered
+    const withDistance = inViewport
       .map((place) => ({
         ...place,
         distanceKm: distanceKm(
@@ -64,7 +90,7 @@ const visiblePlaces = computed(() => {
     const inRange = withDistance.filter((place) => place.distanceKm <= 30);
     return inRange.length ? inRange : withDistance.slice(0, 10);
   }
-  return [...filtered].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
+  return [...inViewport].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
 });
 
 function distanceKm(lng1, lat1, lng2, lat2) {
@@ -78,6 +104,113 @@ function distanceKm(lng1, lat1, lng2, lat2) {
 
 function isMobile() {
   return window.matchMedia("(max-width: 860px)").matches;
+}
+
+function stage(value, start, end) {
+  return Math.max(0, Math.min(1, (value - start) / (end - start)));
+}
+
+function setMobileVariable(panel, name, value) {
+  panel.style.setProperty(name, value);
+}
+
+function clearMobileCollapse() {
+  const panel = sidePanelElement.value;
+  mobileHeaderCollapsing.value = false;
+  mobileHeaderCompact.value = false;
+  mobileFilterHorizontal.value = false;
+  expandedMobileHeaderHeight = 0;
+  expandedMobileProviderHeight = 0;
+  expandedMobileToolbarHeight = 0;
+  expandedMobileActionsHeight = 0;
+  expandedMobileStatusHeight = 0;
+  if (!panel) return;
+  [
+    "--mobile-header-height",
+    "--mobile-expanded-opacity",
+    "--mobile-summary-opacity",
+    "--mobile-provider-height",
+    "--mobile-provider-opacity",
+    "--mobile-toolbar-height",
+    "--mobile-toolbar-opacity",
+    "--mobile-actions-height",
+    "--mobile-actions-opacity",
+    "--mobile-status-height",
+    "--mobile-status-opacity",
+    "--mobile-header-gap",
+    "--mobile-provider-gap",
+    "--mobile-toolbar-gap",
+    "--mobile-actions-gap",
+    "--mobile-status-gap",
+  ].forEach((name) => panel.style.removeProperty(name));
+}
+
+function applyMobileCollapse(scrollTop) {
+  const panel = sidePanelElement.value;
+  if (!panel || !isMobile() || scrollTop <= 0.5) {
+    clearMobileCollapse();
+    return;
+  }
+
+  const expandedHeader = panel.querySelector(".mobile-expanded-header");
+  const provider = panel.querySelector(":scope > .provider-switch");
+  const toolbar = panel.querySelector(":scope > .toolbar");
+  const actions = panel.querySelector(":scope > .explore-toolbar");
+  const status = panel.querySelector(":scope > .status-line");
+  if (!expandedMobileHeaderHeight && expandedHeader) expandedMobileHeaderHeight = expandedHeader.scrollHeight;
+  if (!expandedMobileProviderHeight && provider) expandedMobileProviderHeight = provider.scrollHeight;
+  if (!expandedMobileToolbarHeight && toolbar) expandedMobileToolbarHeight = toolbar.scrollHeight;
+  if (!expandedMobileActionsHeight && actions) expandedMobileActionsHeight = actions.scrollHeight;
+  if (!expandedMobileStatusHeight && status) expandedMobileStatusHeight = status.scrollHeight;
+
+  const progress = Math.min(1, scrollTop / MOBILE_COLLAPSE_END);
+  const headerProgress = stage(scrollTop, 0, 95);
+  const summaryProgress = stage(scrollTop, 45, 105);
+  const providerProgress = stage(scrollTop, 55, 150);
+  const toolbarProgress = stage(scrollTop, 145, MOBILE_COLLAPSE_END);
+  const actionsProgress = stage(scrollTop, 115, MOBILE_COLLAPSE_END);
+  const toolbarOpacity = scrollTop < 180
+    ? 1 - stage(scrollTop, 145, 180)
+    : stage(scrollTop, 180, MOBILE_COLLAPSE_END);
+  const baseGap = 12 - progress * 4;
+  const expandedHeaderHeight = expandedMobileHeaderHeight || 118;
+  const providerHeight = expandedMobileProviderHeight;
+  const actionsHeight = expandedMobileActionsHeight;
+  const statusHeight = expandedMobileStatusHeight;
+
+  setMobileVariable(panel, "--mobile-header-height", `${expandedHeaderHeight + (30 - expandedHeaderHeight) * headerProgress}px`);
+  setMobileVariable(panel, "--mobile-expanded-opacity", String(1 - headerProgress));
+  setMobileVariable(panel, "--mobile-summary-opacity", String(summaryProgress));
+  setMobileVariable(panel, "--mobile-provider-height", `${providerHeight * (1 - providerProgress)}px`);
+  setMobileVariable(panel, "--mobile-provider-opacity", String(1 - stage(scrollTop, 55, 105)));
+  setMobileVariable(panel, "--mobile-toolbar-height", `${expandedMobileToolbarHeight + (40 - expandedMobileToolbarHeight) * toolbarProgress}px`);
+  setMobileVariable(panel, "--mobile-toolbar-opacity", String(toolbarOpacity));
+  setMobileVariable(panel, "--mobile-actions-height", `${actionsHeight * (1 - actionsProgress)}px`);
+  setMobileVariable(panel, "--mobile-actions-opacity", String(1 - actionsProgress));
+  setMobileVariable(panel, "--mobile-status-height", `${statusHeight * (1 - actionsProgress)}px`);
+  setMobileVariable(panel, "--mobile-status-opacity", String(1 - actionsProgress));
+  setMobileVariable(panel, "--mobile-header-gap", `${baseGap}px`);
+  setMobileVariable(panel, "--mobile-provider-gap", `${baseGap * (1 - providerProgress)}px`);
+  setMobileVariable(panel, "--mobile-toolbar-gap", `${baseGap}px`);
+  setMobileVariable(panel, "--mobile-actions-gap", `${baseGap * (1 - actionsProgress)}px`);
+  setMobileVariable(panel, "--mobile-status-gap", `${baseGap * (1 - actionsProgress)}px`);
+
+  mobileHeaderCollapsing.value = true;
+  mobileFilterHorizontal.value = scrollTop >= 180;
+  mobileHeaderCompact.value = scrollTop >= MOBILE_COLLAPSE_END;
+}
+
+function handleListScroll(event) {
+  pendingMobileScrollTop = event.currentTarget.scrollTop;
+  if (mobileCollapseFrame) return;
+  mobileCollapseFrame = window.requestAnimationFrame(() => {
+    mobileCollapseFrame = 0;
+    applyMobileCollapse(pendingMobileScrollTop);
+  });
+}
+
+function handleViewportResize() {
+  if (!isMobile()) clearMobileCollapse();
 }
 
 function waitFrame() {
@@ -106,34 +239,35 @@ async function loadFilters() {
 }
 
 async function loadPlaces() {
-  places.value = await getPublicPlaces(filters.value);
-  await nextTick();
-  renderMarkers();
-  focusInitialPlace();
-  scheduleCityMapPrewarm(AMapRef.value, domesticPlaces.value);
-  schedulePlaceImagePreload(domesticPlaces.value);
+  const requestId = ++placesRequestId;
+  try {
+    const loadedPlaces = await getPublicPlaces(filters.value);
+    if (requestId !== placesRequestId) return;
+    places.value = loadedPlaces;
+    if (filters.value.city && !cityOptions.value.includes(filters.value.city)) filters.value.city = "";
+    if (filters.value.author && !authorOptions.value.includes(filters.value.author)) filters.value.author = "";
+    error.value = "";
+    await nextTick();
+    renderMarkers();
+    focusInitialPlace();
+  } catch (err) {
+    if (requestId !== placesRequestId) return;
+    error.value = err.message;
+  }
 }
 
-function renderMarkers() {
+function renderMarkers(fit = true) {
   if (!map.value || !AMapRef.value) return;
   clearMarkerClusters();
-  markerClusters.value = groupPlacesByCity(visiblePlaces.value).map(({ city, places: cityPlaces }) => (
-    new AMapRef.value.MarkerCluster(
-      map.value,
-      cityPlaces.map((place) => ({
-        lnglat: [Number(place.lng), Number(place.lat)],
-        place,
-      })),
-      {
-        gridSize: isMobile() ? 44 : 52,
-        averageCenter: true,
-        clusterByZoomChange: false,
-        renderClusterMarker: (context) => renderCityClusterMarker(context, city),
-        renderMarker: (context) => renderSingleMarker(context, city, cityPlaces.length),
-      },
-    )
-  ));
-  fitAll();
+  storeMarkerData = visiblePlaces.value.map((place) => ({
+    lnglat: [Number(place.lng), Number(place.lat)],
+    place,
+  }));
+  if (storeMarkerData.length) {
+    cityMarkers.value = groupPlacesByCity(visiblePlaces.value).map(createCityMarker);
+    syncMarkerMode(true);
+  }
+  if (fit) fitAll();
 }
 
 function groupPlacesByCity(source) {
@@ -147,11 +281,131 @@ function groupPlacesByCity(source) {
 }
 
 function clearMarkerClusters() {
-  markerClusters.value.forEach((cluster) => {
-    cluster.clearMarkers?.();
-    cluster.setMap?.(null);
+  destroyStoreCluster();
+  if (cityMarkers.value.length) map.value?.remove?.(cityMarkers.value);
+  cityMarkers.value.forEach((marker) => marker.setMap?.(null));
+  cityMarkers.value = [];
+  storeMarkerData = [];
+  activeMarkerMode = "";
+}
+
+function destroyStoreCluster() {
+  markerCluster.value?.clearMarkers?.();
+  markerCluster.value?.setMap?.(null);
+  markerCluster.value = null;
+}
+
+function createStoreCluster() {
+  if (markerCluster.value || !storeMarkerData.length) return;
+  markerCluster.value = new AMapRef.value.MarkerCluster(map.value, storeMarkerData, {
+    gridSize: isMobile() ? 44 : 52,
+    averageCenter: true,
+    clusterByZoomChange: false,
+    renderClusterMarker: renderStoreClusterMarker,
+    renderMarker: renderSingleMarker,
   });
-  markerClusters.value = [];
+}
+
+function cityCenter(cityPlaces) {
+  const total = cityPlaces.reduce((result, place) => ({
+    lng: result.lng + Number(place.lng),
+    lat: result.lat + Number(place.lat),
+  }), { lng: 0, lat: 0 });
+  return [total.lng / cityPlaces.length, total.lat / cityPlaces.length];
+}
+
+function createCityMarker({ city, places: cityPlaces }) {
+  const marker = new AMapRef.value.Marker({
+    position: cityCenter(cityPlaces),
+    content: cityClusterHtml(city, cityPlaces.length),
+    offset: new AMapRef.value.Pixel(-15, -15),
+    zIndex: 120,
+    title: `${city} · ${cityPlaces.length}家`,
+    extData: { city, count: cityPlaces.length, labelVisible: true },
+  });
+  marker.on("click", () => focusCity(cityPlaces));
+  return marker;
+}
+
+function rectanglesOverlap(left, right, padding = 3) {
+  return !(
+    left.right + padding < right.left
+    || left.left - padding > right.right
+    || left.bottom + padding < right.top
+    || left.top - padding > right.bottom
+  );
+}
+
+function syncCityLabelDensity() {
+  if (activeMarkerMode !== "cities" || !map.value?.lngLatToContainer) return;
+  const entries = cityMarkers.value
+    .map((marker) => {
+      const point = map.value.lngLatToContainer(marker.getPosition());
+      const data = marker.getExtData?.() || {};
+      if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+      const labelWidth = Math.min(150, 28 + String(data.city || "").length * 13 + String(data.count || "").length * 7);
+      return {
+        marker,
+        data,
+        point,
+        labelRect: {
+          left: point.x + 10,
+          right: point.x + 10 + labelWidth,
+          top: point.y - 15,
+          bottom: point.y + 15,
+        },
+        dotRect: {
+          left: point.x - 17,
+          right: point.x + 17,
+          top: point.y - 17,
+          bottom: point.y + 17,
+        },
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Number(b.data.count || 0) - Number(a.data.count || 0));
+  const visibleLabels = [];
+  entries.forEach((entry) => {
+    const coversAnotherDot = entries.some((other) => (
+      other !== entry && rectanglesOverlap(entry.labelRect, other.dotRect, 1)
+    ));
+    const overlapsLabel = visibleLabels.some((rect) => rectanglesOverlap(entry.labelRect, rect));
+    const showLabel = !coversAnotherDot && !overlapsLabel;
+    if (showLabel) visibleLabels.push(entry.labelRect);
+    if (entry.data.labelVisible === showLabel) return;
+    entry.marker.setContent(cityClusterHtml(entry.data.city, entry.data.count, { showLabel }));
+    entry.marker.setExtData({ ...entry.data, labelVisible: showLabel });
+  });
+}
+
+function focusCity(cityPlaces) {
+  if (cityPlaces.length === 1) {
+    focusPlace(cityPlaces[0]);
+    return;
+  }
+  const lngs = cityPlaces.map((place) => Number(place.lng));
+  const lats = cityPlaces.map((place) => Number(place.lat));
+  const bounds = new AMapRef.value.Bounds(
+    [Math.min(...lngs), Math.min(...lats)],
+    [Math.max(...lngs), Math.max(...lats)],
+  );
+  map.value.setBounds(bounds, true, isMobile() ? [52, 32, 52, 32] : [60, 60, 60, 460]);
+}
+
+function syncMarkerMode(force = false) {
+  if (!map.value || !storeMarkerData.length) return;
+  const showCities = map.value.getZoom() <= CITY_OVERVIEW_MAX_ZOOM;
+  const nextMode = showCities ? "cities" : "stores";
+  if (!force && activeMarkerMode === nextMode) return;
+  activeMarkerMode = nextMode;
+  if (showCities) {
+    destroyStoreCluster();
+    if (cityMarkers.value.length) map.value.add?.(cityMarkers.value);
+    schedule(syncCityLabelDensity, 60);
+  } else {
+    if (cityMarkers.value.length) map.value.remove?.(cityMarkers.value);
+    createStoreCluster();
+  }
 }
 
 function refreshBaseLabelsSoon(delay = 80, followup = false) {
@@ -181,34 +435,13 @@ function finishMapMove() {
   isMapMoving = false;
   document.body.classList.remove("map-moving");
   if (map.value) applyMapLabels(map.value, AMapRef.value, mapTheme.value);
+  syncCityLabelDensity();
   refreshBaseLabelsSoon(260);
 }
 
 function endMapMove() {
   window.clearTimeout(movingTimer);
   movingTimer = window.setTimeout(finishMapMove, 180);
-}
-
-function handlePointerDown(event) {
-  const point = event.touches?.[0] || event;
-  pointerStart = { x: point.clientX, y: point.clientY };
-  pointerDragging = false;
-}
-
-function handlePointerMove(event) {
-  if (!pointerStart || pointerDragging) return;
-  const point = event.touches?.[0] || event;
-  const dx = Math.abs(point.clientX - pointerStart.x);
-  const dy = Math.abs(point.clientY - pointerStart.y);
-  if (dx < 6 && dy < 6) return;
-  pointerDragging = true;
-  beginMapMove();
-}
-
-function handlePointerEnd() {
-  if (pointerDragging) endMapMove();
-  pointerStart = null;
-  pointerDragging = false;
 }
 
 function fitAll() {
@@ -271,6 +504,36 @@ function randomPlace() {
   const target = visiblePlaces.value[Math.floor(Math.random() * visiblePlaces.value.length)];
   actionMessage.value = `随机选中：${target.name}`;
   focusPlace(target);
+}
+
+function toggleViewportFilter() {
+  if (viewportBounds.value) {
+    viewportBounds.value = null;
+    renderMarkers();
+    return;
+  }
+  const bounds = map.value?.getBounds?.();
+  const southWest = bounds?.getSouthWest?.();
+  const northEast = bounds?.getNorthEast?.();
+  if (!southWest || !northEast) {
+    actionMessage.value = "当前地图视野暂不可读取。";
+    return;
+  }
+  viewportBounds.value = {
+    minLng: Number(southWest.lng),
+    minLat: Number(southWest.lat),
+    maxLng: Number(northEast.lng),
+    maxLat: Number(northEast.lat),
+  };
+  actionMessage.value = "已筛选当前地图视野。";
+  renderMarkers(false);
+}
+
+async function resetFilters() {
+  Object.assign(filters.value, { category: "", recommend: "", city: "", author: "" });
+  viewportBounds.value = null;
+  actionMessage.value = "";
+  await loadPlaces();
 }
 
 function focusInitialPlace() {
@@ -339,12 +602,11 @@ function removeSingleMarkerHandler(marker) {
   singleMarkerHandlers.delete(marker);
 }
 
-function renderCityClusterMarker(context, city) {
+function renderStoreClusterMarker(context) {
   removeSingleMarkerHandler(context.marker);
-  const showCity = map.value.getZoom() <= CITY_OVERVIEW_MAX_ZOOM;
-  context.marker.setContent(showCity ? cityClusterHtml(city, context.count) : clusterCountHtml(context.count));
+  context.marker.setContent(clusterCountHtml(context.count));
   context.marker.setOffset(new AMapRef.value.Pixel(-15, -15));
-  context.marker.setExtData({ city, count: context.count });
+  context.marker.setExtData({ count: context.count });
 }
 
 function contextPlace(context) {
@@ -356,13 +618,12 @@ function contextPlace(context) {
   return null;
 }
 
-function renderSingleMarker(context, city, cityTotal) {
+function renderSingleMarker(context) {
   const place = contextPlace(context);
   if (!place) return;
-  const showCityOverview = cityTotal === 1 && map.value.getZoom() <= CITY_OVERVIEW_MAX_ZOOM;
-  context.marker.setContent(showCityOverview ? cityClusterHtml(city, 1) : storeMarkerHtml(place));
-  context.marker.setOffset(new AMapRef.value.Pixel(showCityOverview ? -15 : -14, showCityOverview ? -15 : -14));
-  context.marker.setExtData({ place, placeId: place.id, city });
+  context.marker.setContent(storeMarkerHtml(place));
+  context.marker.setOffset(new AMapRef.value.Pixel(-14, -14));
+  context.marker.setExtData({ place, placeId: place.id, city: place.city || "" });
   removeSingleMarkerHandler(context.marker);
   const clickHandler = () => focusPlace(place);
   singleMarkerHandlers.set(context.marker, clickHandler);
@@ -370,16 +631,21 @@ function renderSingleMarker(context, city, cityTotal) {
 }
 
 function handleMapComplete() {
+  syncCityLabelDensity();
   refreshBaseLabelsSoon(80, true);
 }
 
 function handleZoomEnd() {
+  endMapMove();
+  syncMarkerMode();
+  schedule(syncCityLabelDensity, 80);
   refreshBaseLabelsSoon(220);
 }
 
 onMounted(async () => {
   try {
     document.body.classList.add("map-day");
+    window.addEventListener("resize", handleViewportResize, { passive: true });
     AMapRef.value = await loadAmap();
     map.value = new AMapRef.value.Map("publicMap", {
       ...mapOptions(),
@@ -391,19 +657,8 @@ onMounted(async () => {
     map.value.on("dragstart", beginMapMove);
     map.value.on("moveend", endMapMove);
     map.value.on("dragend", endMapMove);
+    map.value.on("zoomstart", beginMapMove);
     map.value.on("zoomend", handleZoomEnd);
-    mapElement = document.getElementById("publicMap");
-    mapElement?.addEventListener("pointerdown", handlePointerDown, { passive: true });
-    mapElement?.addEventListener("pointermove", handlePointerMove, { passive: true });
-    mapElement?.addEventListener("mousedown", handlePointerDown, { passive: true });
-    mapElement?.addEventListener("mousemove", handlePointerMove, { passive: true });
-    mapElement?.addEventListener("touchstart", handlePointerDown, { passive: true });
-    mapElement?.addEventListener("touchmove", handlePointerMove, { passive: true });
-    window.addEventListener("pointerup", handlePointerEnd, { passive: true });
-    window.addEventListener("pointercancel", handlePointerEnd, { passive: true });
-    window.addEventListener("mouseup", handlePointerEnd, { passive: true });
-    window.addEventListener("touchend", handlePointerEnd, { passive: true });
-    window.addEventListener("touchcancel", handlePointerEnd, { passive: true });
     scaleControl = new AMapRef.value.Scale();
     map.value.addControl(scaleControl);
     infoWindow.value = new AMapRef.value.InfoWindow({
@@ -425,21 +680,11 @@ onUnmounted(() => {
   window.clearTimeout(baseLabelTimer);
   window.clearTimeout(baseLabelFollowupTimer);
   window.clearTimeout(movingTimer);
+  window.cancelAnimationFrame(mobileCollapseFrame);
+  window.removeEventListener("resize", handleViewportResize);
   pendingTimers.forEach((timer) => window.clearTimeout(timer));
   pendingTimers.clear();
   document.body.classList.remove("map-moving", "map-day");
-
-  mapElement?.removeEventListener("pointerdown", handlePointerDown);
-  mapElement?.removeEventListener("pointermove", handlePointerMove);
-  mapElement?.removeEventListener("mousedown", handlePointerDown);
-  mapElement?.removeEventListener("mousemove", handlePointerMove);
-  mapElement?.removeEventListener("touchstart", handlePointerDown);
-  mapElement?.removeEventListener("touchmove", handlePointerMove);
-  window.removeEventListener("pointerup", handlePointerEnd);
-  window.removeEventListener("pointercancel", handlePointerEnd);
-  window.removeEventListener("mouseup", handlePointerEnd);
-  window.removeEventListener("touchend", handlePointerEnd);
-  window.removeEventListener("touchcancel", handlePointerEnd);
 
   if (map.value) {
     map.value.off("complete", handleMapComplete);
@@ -447,6 +692,7 @@ onUnmounted(() => {
     map.value.off("dragstart", beginMapMove);
     map.value.off("moveend", endMapMove);
     map.value.off("dragend", endMapMove);
+    map.value.off("zoomstart", beginMapMove);
     map.value.off("zoomend", handleZoomEnd);
   }
   infoWindow.value?.close();
@@ -455,10 +701,11 @@ onUnmounted(() => {
   map.value?.destroy?.();
 
   infoWindow.value = null;
-  markerClusters.value = [];
+  markerCluster.value = null;
+  cityMarkers.value = [];
+  storeMarkerData = [];
   map.value = null;
   AMapRef.value = null;
-  mapElement = null;
   scaleControl = null;
 });
 </script>
@@ -502,11 +749,37 @@ onUnmounted(() => {
         <Moon v-else :size="21" :stroke-width="1.7" aria-hidden="true" />
       </button>
     </div>
-    <aside id="foodSidebar" v-show="!sidebarCollapsed" class="side-panel">
+    <aside
+      ref="sidePanelElement"
+      id="foodSidebar"
+      v-show="!sidebarCollapsed"
+      class="side-panel"
+      :class="{
+        'mobile-header-collapsing': mobileHeaderCollapsing,
+        'mobile-header-compact': mobileHeaderCompact,
+        'mobile-filter-horizontal': mobileFilterHorizontal,
+      }"
+    >
       <header>
-        <p class="eyebrow">DUSKRAIN TASTE MAP</p>
-        <h1>吕其林美食指南</h1>
-        <p class="subtle">把亲自吃过、想推荐、需要避雷的店铺标在地图上，按分类和推荐等级快速筛选。</p>
+        <div class="mobile-expanded-header">
+          <p class="eyebrow">DUSKRAIN TASTE MAP</p>
+          <h1>吕其林美食指南</h1>
+          <p class="subtle">把亲自吃过、想推荐、需要避雷的店铺标在地图上，按分类和推荐等级快速筛选。</p>
+        </div>
+        <div class="mobile-compact-summary">
+          <strong>吕其林美食指南</strong>
+          <span>当前 {{ visiblePlaces.length }} 家</span>
+          <button
+            v-if="hasActiveFilters"
+            class="mobile-compact-reset"
+            type="button"
+            aria-label="重置筛选"
+            title="重置筛选"
+            @click="resetFilters"
+          >
+            <RotateCcw :size="16" :stroke-width="1.8" aria-hidden="true" />
+          </button>
+        </div>
       </header>
       <div class="provider-switch">
         <span class="provider-switch-btn is-active">国内高德</span>
@@ -544,18 +817,35 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <div class="button-row">
-        <button class="btn secondary" type="button" @click="findNearby">{{ nearbyMode ? "取消附近" : "附近店家" }}</button>
-        <button class="btn secondary" type="button" @click="randomPlace">随机探店</button>
+      <div class="explore-toolbar">
+        <div class="explore-actions">
+          <button class="btn secondary action-command" :class="{ 'is-active': nearbyMode }" type="button" @click="findNearby">
+            <MapPin :size="17" :stroke-width="1.8" aria-hidden="true" />
+            <span>{{ nearbyMode ? "取消附近" : "附近店家" }}</span>
+          </button>
+          <button class="btn secondary action-command" type="button" @click="randomPlace">
+            <Shuffle :size="17" :stroke-width="1.8" aria-hidden="true" />
+            <span>随机探店</span>
+          </button>
+          <button class="btn secondary action-command viewport-command" :class="{ 'is-active': viewportBounds }" type="button" @click="toggleViewportFilter">
+            <ScanSearch :size="17" :stroke-width="1.8" aria-hidden="true" />
+            <span>{{ viewportBounds ? "取消视野" : "当前视野" }}</span>
+          </button>
+          <button v-if="hasActiveFilters" class="btn secondary action-command reset-command" type="button" @click="resetFilters">
+            <RotateCcw :size="16" :stroke-width="1.8" aria-hidden="true" />
+            <span>重置筛选</span>
+          </button>
+        </div>
+        <span class="result-count" aria-live="polite">当前 {{ visiblePlaces.length }} 家</span>
       </div>
       <div v-if="actionMessage" class="status-line">{{ actionMessage }}</div>
 
-      <section class="list" aria-live="polite">
+      <section ref="listElement" class="list" aria-live="polite" @scroll.passive="handleListScroll">
         <article v-if="error" class="place-item">
           <p class="subtle">{{ error }}</p>
         </article>
         <article v-else-if="!visiblePlaces.length" class="place-item">
-          <p class="subtle">还没有公开店铺。进入管理页添加第一家店。</p>
+          <p class="subtle">{{ hasActiveFilters ? "当前筛选条件下没有店家，请调整筛选项。" : "还没有公开店铺。" }}</p>
         </article>
         <article v-for="place in visiblePlaces" :key="place.id" class="place-item" @click="focusPlace(place)">
           <div class="item-title">
@@ -568,7 +858,7 @@ onUnmounted(() => {
           <div class="subtle">{{ formatAddress(place) }}</div>
           <div class="pill-row">
             <span v-if="place.distanceKm != null" class="pill">{{ place.distanceKm.toFixed(1) }} 公里</span>
-            <span v-if="place.my_category" class="pill">{{ place.my_category }}</span>
+            <span v-for="category in placeCategories(place)" :key="category" class="pill">{{ category }}</span>
             <span v-if="place.recommend_level" class="pill">{{ place.recommend_level }}</span>
             <span class="pill">美食评价</span>
             <span v-if="place.business_hours" class="pill">{{ place.business_hours }}</span>

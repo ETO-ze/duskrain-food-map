@@ -100,6 +100,16 @@ if (
   throw new Error(`Fixed-author parsing failed: ${JSON.stringify(fixedAuthorRows)}`);
 }
 
+const multiCategoryRows = parseBulkPlaceText(
+  "1 羊老赞铜锅涮羊肉 天津 8.8 推荐 吕俊泽 火锅、烧烤、宵夜",
+);
+if (
+  multiCategoryRows[0].my_category !== "火锅"
+  || JSON.stringify(multiCategoryRows[0].my_categories) !== JSON.stringify(["火锅", "烧烤", "宵夜"])
+) {
+  throw new Error(`Multi-category parsing failed: ${JSON.stringify(multiCategoryRows[0])}`);
+}
+
 console.table(rows.map(({ lineNumber, name, city, address, note, rating, recommend_level }) => ({
   lineNumber,
   name,

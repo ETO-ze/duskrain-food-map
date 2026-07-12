@@ -2,11 +2,14 @@
 import { computed, ref, watch } from "vue";
 import { getPoiDetail, saveAdminPlace, searchPoi } from "../utils/api";
 import { bestPoiCandidate, normalizePlaceName, parseBulkPlaceText } from "../utils/bulk-import";
+import { categoryPayload, placeCategories } from "../utils/categories";
 
 const props = defineProps({
   places: { type: Array, required: true },
   fixedAuthor: { type: String, default: "" },
   savePlaceHandler: { type: Function, default: saveAdminPlace },
+  searchHandler: { type: Function, default: searchPoi },
+  detailHandler: { type: Function, default: getPoiDetail },
 });
 
 const emit = defineEmits(["completed", "status"]);
@@ -34,6 +37,7 @@ function findExisting(candidate, row, additionalPlaces = []) {
 }
 
 function placePayload(detail, row) {
+  const categories = categoryPayload(row.my_categories, row.my_category);
   return {
     map_provider: "amap",
     country_code: "CN",
@@ -50,7 +54,7 @@ function placePayload(detail, row) {
     business_hours: detail.business_hours || "",
     amap_detail_url: detail.amap_detail_url || "",
     provider_detail_url: detail.provider_detail_url || detail.amap_detail_url || "",
-    my_category: row.my_category || "",
+    ...categories,
     rating: row.rating,
     rating_author: props.fixedAuthor || row.rating_author || "吕俊泽",
     recommend_level: row.recommend_level,
@@ -68,7 +72,7 @@ function placePayload(detail, row) {
 
 const INFORMATION_FIELDS = [
   "address", "city", "district", "provider_category", "phone", "business_hours",
-  "amap_detail_url", "provider_detail_url", "my_category", "recommend_level",
+  "amap_detail_url", "provider_detail_url", "my_category", "my_categories", "recommend_level",
   "review_url", "review_text", "tags", "note", "visited_at", "cover_image", "image_urls",
 ];
 
@@ -82,10 +86,15 @@ function informationScore(place) {
 function mergePlace(existing, incoming) {
   const merged = { ...incoming };
   Object.keys(merged).forEach((field) => {
-    if ((merged[field] == null || merged[field] === "") && existing[field] != null) {
+    const isEmpty = merged[field] == null
+      || merged[field] === ""
+      || (Array.isArray(merged[field]) && !merged[field].length);
+    if (isEmpty && existing[field] != null) {
       merged[field] = existing[field];
     }
   });
+  const categories = categoryPayload(merged.my_categories, merged.my_category);
+  Object.assign(merged, categories);
   return merged;
 }
 
@@ -116,7 +125,7 @@ async function importAll() {
     emit("status", `正在处理 ${index + 1}/${queue.length}：${row.name}`);
     try {
       const query = [row.name, row.address].filter(Boolean).join(" ").slice(0, 80);
-      const searchData = await searchPoi(query, row.city.slice(0, 40));
+      const searchData = await props.searchHandler(query, row.city.slice(0, 40));
       const match = bestPoiCandidate(row, searchData.items || []);
       if (!match) throw new Error("高德没有返回可用商家");
 
@@ -124,7 +133,7 @@ async function importAll() {
       row.matchedName = detail.name || "";
       if (detail.provider_poi_id) {
         try {
-          const detailData = await getPoiDetail(detail.provider_poi_id);
+          const detailData = await props.detailHandler(detail.provider_poi_id);
           detail = { ...detail, ...(detailData.item || {}) };
         } catch (_) {}
       }
@@ -191,8 +200,8 @@ function clearInput() {
       <strong>输入格式</strong>
       <span v-if="fixedAuthor">编号 店名 城市或详细地址 评分 推荐等级 菜系</span>
       <span v-else>编号 店名 城市或详细地址 评分 推荐等级 作者 菜系</span>
-      <small v-if="fixedAuthor">作者自动使用当前登录账号“{{ fixedAuthor }}”，无需填写。推荐等级支持“必去 / 推荐 / 一般 / 避雷”。</small>
-      <small v-else>推荐等级支持“必去 / 推荐 / 一般 / 避雷”。未填写作者时默认使用吕俊泽，菜系未填写时留空。</small>
+      <small v-if="fixedAuthor">作者自动使用当前登录账号“{{ fixedAuthor }}”，无需填写。多个菜系用“、”分隔。</small>
+      <small v-else>推荐等级支持“必去 / 推荐 / 一般 / 避雷”。未填写作者时默认使用吕俊泽，多个菜系用“、”分隔。</small>
     </div>
     <textarea
       v-model="rawText"
@@ -234,7 +243,7 @@ function clearInput() {
               <span class="rating">{{ row.rating }} / 10</span>
               <span class="pill">{{ row.recommend_level }}</span>
               <span v-if="!fixedAuthor" class="pill">作者：{{ row.rating_author }}</span>
-              <span v-if="row.my_category" class="pill">菜系：{{ row.my_category }}</span>
+              <span v-for="category in placeCategories(row)" :key="category" class="pill">菜系：{{ category }}</span>
               <span v-if="row.recommendation_defaulted" class="pill">默认</span>
               <span v-if="row.matchedName" class="pill">匹配：{{ row.matchedName }}</span>
             </span>

@@ -1,11 +1,8 @@
 import { getConfig } from "./api";
+import { categoryText } from "./categories";
 
 let amapPromise;
 const TRANSPARENT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
-const PREWARM_CITIES = ["天津市", "广州市", "北京市"];
-const PREWARM_ZOOMS = [16, 18];
-const prewarmedCities = new Set();
-let prewarmRunning = false;
 
 export async function loadAmap() {
   if (window.AMap) return window.AMap;
@@ -54,10 +51,11 @@ export function storeMarkerHtml(place) {
   `;
 }
 
-export function cityClusterHtml(city, count) {
+export function cityClusterHtml(city, count, options = {}) {
   const safeCount = Number(count) || 0;
+  const hiddenClass = options.showLabel === false ? " is-label-hidden" : "";
   return `
-    <div class="city-cluster">
+    <div class="city-cluster${hiddenClass}">
       <span class="city-cluster-dot">${escapeHtml(safeCount)}</span>
       <span class="city-cluster-label">${escapeHtml(city)} · ${escapeHtml(safeCount)}家</span>
     </div>
@@ -271,142 +269,6 @@ export function applyMovingMapFeatures(map) {
   }
 }
 
-function delay(ms) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function scheduleIdleTask(task, timeout = 1600) {
-  if ("requestIdleCallback" in window) {
-    window.requestIdleCallback(task, { timeout });
-    return;
-  }
-  window.setTimeout(task, timeout);
-}
-
-function cityPrewarmCenters(cityPlaces) {
-  if (!cityPlaces.length) return [];
-  const centroid = cityPlaces.reduce((acc, place) => {
-    acc.lng += Number(place.lng);
-    acc.lat += Number(place.lat);
-    return acc;
-  }, { lng: 0, lat: 0 });
-  centroid.lng /= cityPlaces.length;
-  centroid.lat /= cityPlaces.length;
-
-  const centerPoint = { lng: centroid.lng, lat: centroid.lat };
-  const selected = [centerPoint];
-  const ranked = [...cityPlaces]
-    .map((place) => ({
-      lng: Number(place.lng),
-      lat: Number(place.lat),
-      score: Number(place.rating || 0),
-      distance: ((Number(place.lng) - centroid.lng) ** 2) + ((Number(place.lat) - centroid.lat) ** 2),
-    }))
-    .sort((a, b) => b.score - a.score || b.distance - a.distance);
-
-  for (const item of ranked) {
-    if (selected.length >= 3) break;
-    const tooClose = selected.some((point) => Math.abs(point.lng - item.lng) < 0.01 && Math.abs(point.lat - item.lat) < 0.01);
-    if (!tooClose) selected.push({ lng: item.lng, lat: item.lat });
-  }
-  return selected;
-}
-
-export function scheduleCityMapPrewarm(AMap, places, cities = PREWARM_CITIES) {
-  if (!AMap || prewarmRunning) return;
-  const cityGroups = cities
-    .map((city) => ({
-      city,
-      places: places.filter((place) => place.city === city && place.lng && place.lat),
-    }))
-    .filter(({ city, places: cityPlaces }) => cityPlaces.length && !prewarmedCities.has(city));
-  if (!cityGroups.length) return;
-
-  prewarmRunning = true;
-  scheduleIdleTask(async () => {
-    const container = document.createElement("div");
-    container.setAttribute("aria-hidden", "true");
-    container.style.cssText = [
-      "position:fixed",
-      "left:-360px",
-      "top:-360px",
-      "width:256px",
-      "height:256px",
-      "opacity:0.01",
-      "pointer-events:none",
-      "z-index:-1",
-      "overflow:hidden",
-    ].join(";");
-    document.body.appendChild(container);
-
-    let warmMap = null;
-    try {
-      warmMap = new AMap.Map(container, {
-        zoom: 16,
-        center: [116.397428, 39.90923],
-        mapStyle: "amap://styles/normal",
-        viewMode: "2D",
-        animateEnable: false,
-        showLabel: true,
-        labelzIndex: 480,
-        lang: "zh_cn",
-        features: BASE_MAP_FEATURES,
-      });
-      applyMapLabels(warmMap, AMap);
-
-      for (const group of cityGroups) {
-        const centers = cityPrewarmCenters(group.places);
-        for (const center of centers) {
-          for (const zoom of PREWARM_ZOOMS) {
-            warmMap.setZoomAndCenter(zoom, [center.lng, center.lat], true);
-            await delay(420);
-          }
-        }
-        prewarmedCities.add(group.city);
-      }
-    } finally {
-      await delay(500);
-      if (warmMap?.destroy) warmMap.destroy();
-      container.remove();
-      prewarmRunning = false;
-    }
-  });
-}
-
-function preloadImage(url) {
-  return new Promise((resolve) => {
-    const image = new Image();
-    const done = () => resolve();
-    const timer = window.setTimeout(done, 3000);
-    image.onload = () => {
-      window.clearTimeout(timer);
-      done();
-    };
-    image.onerror = () => {
-      window.clearTimeout(timer);
-      done();
-    };
-    image.decoding = "async";
-    image.src = url;
-  });
-}
-
-export function schedulePlaceImagePreload(places, maxImages = 80) {
-  const urls = [...new Set(places
-    .filter((place) => !place.hide_images)
-    .flatMap((place) => imageList(place).slice(0, 2))
-    .filter(Boolean))]
-    .slice(0, maxImages);
-  if (!urls.length) return;
-
-  scheduleIdleTask(async () => {
-    for (const url of urls) {
-      await preloadImage(url);
-      await delay(60);
-    }
-  }, 2200);
-}
-
 export function imageList(place) {
   const urls = []
     .concat((place.cover_image || "").trim())
@@ -417,7 +279,7 @@ export function imageList(place) {
 }
 
 function normalizeImageUrl(url) {
-  if (/^http:\/\/store\.is\.autonavi\.com\//i.test(url)) {
+  if (/^http:\/\//i.test(url)) {
     return url.replace(/^http:/i, "https:");
   }
   return url;
@@ -472,6 +334,7 @@ export function infoHtml(place, options = {}) {
   const providerUrl = safeLink(place.provider_detail_url || place.amap_detail_url);
   const providerLabel = place.map_provider === "google" ? "打开 Google Maps" : "打开高德详情";
   const ratingAuthor = place.rating_author || "吕俊泽";
+  const categoryLabel = categoryText(place) || place.provider_category || "";
   const tags = (place.tags || "")
     .split(/[，,]/)
     .map((tag) => tag.trim())
@@ -488,7 +351,7 @@ export function infoHtml(place, options = {}) {
         <span>${escapeHtml(ratingAuthor)}</span>
         ${place.recommend_level ? `<span>${escapeHtml(place.recommend_level)}</span>` : ""}
       </div>
-      ${place.my_category || place.provider_category ? `<p class="info-category">${escapeHtml(place.my_category || place.provider_category)}</p>` : ""}
+      ${categoryLabel ? `<p class="info-category">${escapeHtml(categoryLabel)}</p>` : ""}
       ${place.phone ? `<p>电话：${escapeHtml(place.phone)}</p>` : ""}
       ${place.business_hours ? `<p>营业：${escapeHtml(place.business_hours)}</p>` : ""}
       ${reviewPageUrl || providerUrl ? `

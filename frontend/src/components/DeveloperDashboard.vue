@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import AdminBulkImport from "./AdminBulkImport.vue";
 import AdminPlaceForm from "./AdminPlaceForm.vue";
 import AdminPlaceList from "./AdminPlaceList.vue";
@@ -10,10 +10,13 @@ import {
   deleteDeveloperPlace,
   developerLogin,
   developerLogout,
+  getDeveloperPoiDetail,
   getDeveloperPlaces,
   getDeveloperSession,
+  searchDeveloperPoi,
   saveDeveloperPlace,
 } from "../utils/api";
+import { categoryPayload, placeCategories } from "../utils/categories";
 
 const loading = ref(true);
 const session = ref(null);
@@ -23,6 +26,8 @@ const statusLine = ref("");
 const credentials = reactive({ username: "", password: "" });
 const passwordChange = reactive({ current: "", next: "", confirm: "" });
 const form = reactive(newForm());
+const categoryOptions = computed(() => [...new Set(places.value.flatMap(placeCategories))]
+  .sort((a, b) => a.localeCompare(b, "zh-CN")));
 
 function newForm() {
   return {
@@ -43,6 +48,7 @@ function newForm() {
     amap_detail_url: "",
     provider_detail_url: "",
     my_category: "",
+    my_categories: [],
     rating: null,
     rating_author: session.value?.author_name || "",
     recommend_level: "",
@@ -63,10 +69,13 @@ function setStatus(message) {
 }
 
 function fillFromPlace(place, includeId = true) {
+  const categories = placeCategories(place);
   Object.assign(form, {
     ...newForm(),
     ...place,
     id: includeId ? place.id || "" : "",
+    my_category: categories[0] || "",
+    my_categories: [...categories],
     rating_author: session.value.author_name,
     rating: place.rating ?? null,
     hide_images: Boolean(place.hide_images),
@@ -75,6 +84,7 @@ function fillFromPlace(place, includeId = true) {
 }
 
 function readPayload() {
+  const categories = categoryPayload(form.my_categories, form.my_category);
   return {
     provider_poi_id: String(form.provider_poi_id || "").trim(),
     map_provider: form.map_provider === "google" ? "google" : "amap",
@@ -91,7 +101,7 @@ function readPayload() {
     business_hours: String(form.business_hours || "").trim(),
     amap_detail_url: String(form.amap_detail_url || "").trim(),
     provider_detail_url: String(form.provider_detail_url || form.amap_detail_url || "").trim(),
-    my_category: String(form.my_category || "").trim(),
+    ...categories,
     rating: form.rating === "" || form.rating == null ? null : Number(form.rating),
     rating_author: session.value.author_name,
     recommend_level: form.recommend_level || "",
@@ -151,18 +161,26 @@ async function logout() {
 }
 
 function resetForm() {
+  setStatus("");
   Object.assign(form, newForm());
   activeModule.value = "edit";
 }
 
 function selectPlace(place) {
+  setStatus("");
   fillFromPlace(place);
   activeModule.value = "edit";
 }
 
 function selectCandidate(candidate) {
+  setStatus("");
   fillFromPlace(candidate, false);
   activeModule.value = "edit";
+}
+
+function openModule(module) {
+  setStatus("");
+  activeModule.value = module;
 }
 
 async function savePlace() {
@@ -205,6 +223,10 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+});
+
+onUnmounted(() => {
+  document.body.classList.remove("map-day");
 });
 </script>
 
@@ -267,16 +289,17 @@ onMounted(async () => {
       </header>
 
       <nav class="developer-menu" aria-label="作者管理菜单">
-        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'list' }" type="button" @click="activeModule = 'list'">我的店家</button>
-        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'search' }" type="button" @click="activeModule = 'search'">搜索新建</button>
-        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'map' }" type="button" @click="activeModule = 'map'">地图选点</button>
-        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'bulk' }" type="button" @click="activeModule = 'bulk'">批量新建</button>
+        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'list' }" type="button" @click="openModule('list')">我的店家</button>
+        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'search' }" type="button" @click="openModule('search')">搜索新建</button>
+        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'map' }" type="button" @click="openModule('map')">地图选点</button>
+        <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'bulk' }" type="button" @click="openModule('bulk')">批量新建</button>
         <button class="admin-menu-btn" :class="{ 'is-active': activeModule === 'edit' }" type="button" @click="resetForm">编辑资料</button>
       </nav>
 
       <AdminPlaceList
         v-if="activeModule === 'list'"
         :places="places"
+        enable-category-filter
         @new="resetForm"
         @edit="selectPlace"
         @delete="removePlace"
@@ -284,6 +307,8 @@ onMounted(async () => {
       <AdminPoiSearch
         v-if="activeModule === 'search'"
         :places="places"
+        :search-handler="searchDeveloperPoi"
+        :detail-handler="getDeveloperPoiDetail"
         @select-place="selectPlace"
         @select-candidate="selectCandidate"
         @status="setStatus"
@@ -300,6 +325,8 @@ onMounted(async () => {
         :places="places"
         :fixed-author="session.author_name"
         :save-place-handler="saveDeveloperPlace"
+        :search-handler="searchDeveloperPoi"
+        :detail-handler="getDeveloperPoiDetail"
         @completed="handleBulkCompleted"
         @status="setStatus"
       />
@@ -307,6 +334,7 @@ onMounted(async () => {
         v-if="activeModule === 'edit'"
         :form="form"
         :author-options="[session.author_name]"
+        :category-options="categoryOptions"
         author-locked
         @save="savePlace"
         @new="resetForm"

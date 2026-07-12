@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import hashlib
 import hmac
 import secrets
@@ -68,6 +69,7 @@ class PlaceIn(BaseModel):
     amap_detail_url: str = ""
     provider_detail_url: str = ""
     my_category: str = ""
+    my_categories: list[str] = Field(default_factory=list)
     rating: Optional[float] = Field(default=None, ge=0, le=10)
     rating_author: str = "吕俊泽"
     recommend_level: str = ""
@@ -110,6 +112,53 @@ class DeveloperAccountUpdate(DeveloperAccountIn):
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+CATEGORY_SPLIT_RE = re.compile(r"\s*(?:[,，、|;/；]|\s+/\s+)\s*")
+
+
+def normalize_category_values(
+    values: Optional[list[Any]] = None,
+    legacy_value: Any = "",
+) -> list[str]:
+    raw_values: list[Any] = list(values or [])
+    if not raw_values and legacy_value not in (None, ""):
+        raw_values = [legacy_value]
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw_value in raw_values:
+        for part in CATEGORY_SPLIT_RE.split(str(raw_value or "")):
+            category = part.strip()[:40]
+            key = category.casefold()
+            if not category or key in seen:
+                continue
+            seen.add(key)
+            result.append(category)
+            if len(result) >= 12:
+                return result
+    return result
+
+
+def decode_category_values(value: Any, legacy_value: Any = "") -> list[str]:
+    parsed: list[Any] = []
+    if isinstance(value, list):
+        parsed = value
+    elif isinstance(value, str) and value.strip():
+        try:
+            candidate = json.loads(value)
+            if isinstance(candidate, list):
+                parsed = candidate
+        except (TypeError, ValueError, json.JSONDecodeError):
+            parsed = [value]
+    return normalize_category_values(parsed, legacy_value if not parsed else "")
+
+
+def payload_category_values(payload: PlaceIn) -> list[str]:
+    return normalize_category_values(payload.my_categories, payload.my_category)
+
+
+def encode_category_values(values: list[str]) -> str:
+    return json.dumps(values, ensure_ascii=False, separators=(",", ":"))
 
 
 @contextmanager
@@ -226,6 +275,7 @@ def place_information_score(row: sqlite3.Row) -> int:
         text = str(value).strip()
         if text:
             score += 10 + min(len(text), 100)
+    score += max(0, len(decode_category_values(item.get("my_categories"), item.get("my_category"))) - 1) * 10
     return score
 
 
@@ -292,6 +342,7 @@ def init_db() -> None:
                 amap_detail_url TEXT DEFAULT '',
                 provider_detail_url TEXT DEFAULT '',
                 my_category TEXT DEFAULT '',
+                my_categories TEXT NOT NULL DEFAULT '[]',
                 rating REAL,
                 rating_author TEXT DEFAULT '吕俊泽',
                 recommend_level TEXT DEFAULT '',
@@ -320,6 +371,7 @@ def init_db() -> None:
             "business_hours": "ALTER TABLE food_places ADD COLUMN business_hours TEXT DEFAULT ''",
             "amap_detail_url": "ALTER TABLE food_places ADD COLUMN amap_detail_url TEXT DEFAULT ''",
             "provider_detail_url": "ALTER TABLE food_places ADD COLUMN provider_detail_url TEXT DEFAULT ''",
+            "my_categories": "ALTER TABLE food_places ADD COLUMN my_categories TEXT NOT NULL DEFAULT '[]'",
             "rating_author": "ALTER TABLE food_places ADD COLUMN rating_author TEXT DEFAULT '吕俊泽'",
             "review_url": "ALTER TABLE food_places ADD COLUMN review_url TEXT DEFAULT ''",
             "review_text": "ALTER TABLE food_places ADD COLUMN review_text TEXT DEFAULT ''",
@@ -341,6 +393,18 @@ def init_db() -> None:
         conn.execute(
             "UPDATE food_places SET coordinate_system = 'gcj02' WHERE coordinate_system IS NULL OR trim(coordinate_system) = ''"
         )
+        category_rows = conn.execute(
+            "SELECT id, my_category, my_categories FROM food_places"
+        ).fetchall()
+        for row in category_rows:
+            category_values = decode_category_values(row["my_categories"], row["my_category"])
+            primary_category = category_values[0] if category_values else ""
+            encoded_categories = encode_category_values(category_values)
+            if row["my_category"] != primary_category or row["my_categories"] != encoded_categories:
+                conn.execute(
+                    "UPDATE food_places SET my_category = ?, my_categories = ? WHERE id = ?",
+                    (primary_category, encoded_categories, row["id"]),
+                )
         conn.execute(
             """
             UPDATE food_places
@@ -408,6 +472,11 @@ def row_to_place(row: sqlite3.Row) -> dict[str, Any]:
     item["is_public"] = bool(item["is_public"])
     item["hide_images"] = bool(item.get("hide_images", 0))
     item["rating_author"] = item.get("rating_author") or "吕俊泽"
+    item["my_categories"] = decode_category_values(
+        item.get("my_categories"),
+        item.get("my_category", ""),
+    )
+    item["my_category"] = item["my_categories"][0] if item["my_categories"] else ""
     return item
 
 
@@ -548,6 +617,45 @@ def normalize_search(q: str, city: str) -> tuple[str, str]:
                 if terms:
                     return terms[0].strip(), candidate
     return keyword, normalized_city
+
+
+def _search_match_text(value: Any) -> str:
+    return re.sub(r"[\s·・.()（）\-_/]+", "", _string_value(value)).lower()
+
+
+def _amap_poi_search_score(poi: dict[str, Any], keyword: str, city: str) -> int:
+    query = _search_match_text(keyword)
+    name = _search_match_text(poi.get("name"))
+    address = _search_match_text(poi.get("address"))
+    city_name = _search_match_text(poi.get("cityname"))
+    score = 0
+    if query and name == query:
+        score += 1000
+    elif query and query in name:
+        score += 700
+    elif query and len(name) >= 2 and name in query:
+        score += 550
+    elif query and query in address:
+        score += 350
+    if city and _search_match_text(city) in city_name:
+        score += 80
+    if _string_value(poi.get("type")).startswith("餐饮服务"):
+        score += 20
+    return score
+
+
+def _has_strong_amap_match(pois: list[dict[str, Any]], keyword: str) -> bool:
+    query = _search_match_text(keyword)
+    if not query:
+        return False
+    return any(
+        query in _search_match_text(poi.get("name"))
+        or (
+            len(_search_match_text(poi.get("name"))) >= 2
+            and _search_match_text(poi.get("name")) in query
+        )
+        for poi in pois
+    )
 
 
 @app.get("/")
@@ -781,9 +889,6 @@ def list_public_places(
 ) -> list[dict[str, Any]]:
     clauses = ["is_public = 1"]
     params: list[Any] = []
-    if category:
-        clauses.append("my_category = ?")
-        params.append(category)
     if recommend:
         clauses.append("recommend_level = ?")
         params.append(recommend)
@@ -791,7 +896,10 @@ def list_public_places(
     sql += " ORDER BY COALESCE(rating, 0) DESC, updated_at DESC"
     with db() as conn:
         rows = conn.execute(sql, params).fetchall()
-    return [row_to_place(row) for row in rows]
+    items = [row_to_place(row) for row in rows]
+    if category:
+        items = [item for item in items if category in item["my_categories"]]
+    return items
 
 
 @app.get("/api/places/{place_id}", response_model=Place)
@@ -802,19 +910,24 @@ def get_public_place(place_id: int) -> dict[str, Any]:
             (place_id,),
         ).fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="Place not found")
+        raise HTTPException(status_code=404, detail="店家不存在或已下架")
     return row_to_place(row)
 
 
 @app.get("/api/categories")
 def categories() -> dict[str, list[str]]:
     with db() as conn:
-        cats = [
-            row[0]
-            for row in conn.execute(
-                "SELECT DISTINCT my_category FROM food_places WHERE is_public = 1 AND my_category != '' ORDER BY my_category"
-            ).fetchall()
-        ]
+        category_rows = conn.execute(
+            "SELECT my_category, my_categories FROM food_places WHERE is_public = 1"
+        ).fetchall()
+        cats = sorted(
+            {
+                category
+                for row in category_rows
+                for category in decode_category_values(row["my_categories"], row["my_category"])
+            },
+            key=lambda value: value.casefold(),
+        )
         recs = [
             row[0]
             for row in conn.execute(
@@ -834,11 +947,14 @@ async def search_places(
 
     keyword, normalized_city = normalize_search(q, city)
     attempts = [
-        {"types": "050000", "citylimit": "true" if normalized_city else "false"},
         {"types": "", "citylimit": "true" if normalized_city else "false"},
-        {"types": "", "citylimit": "false"},
+        {"types": "050000", "citylimit": "true" if normalized_city else "false"},
     ]
-    data = None
+    if normalized_city:
+        attempts.append({"types": "", "citylimit": "false"})
+    raw_pois: list[dict[str, Any]] = []
+    seen_pois: set[tuple[str, str, str]] = set()
+    successful_request = False
     async with httpx.AsyncClient(timeout=8) as client:
         for attempt in attempts:
             params = {
@@ -858,14 +974,35 @@ async def search_places(
             candidate_data = resp.json()
             if candidate_data.get("status") != "1":
                 continue
-            data = candidate_data
-            if candidate_data.get("pois"):
+            successful_request = True
+            candidate_pois = candidate_data.get("pois") if isinstance(candidate_data.get("pois"), list) else []
+            for poi in candidate_pois:
+                if not isinstance(poi, dict):
+                    continue
+                key = (
+                    _string_value(poi.get("id")),
+                    _string_value(poi.get("name")),
+                    _string_value(poi.get("location")),
+                )
+                if key in seen_pois:
+                    continue
+                seen_pois.add(key)
+                raw_pois.append(poi)
+            if _has_strong_amap_match(candidate_pois, keyword):
                 break
-    if data is None:
+    if not successful_request:
         raise HTTPException(status_code=502, detail="Amap search failed")
 
+    raw_pois = [
+        poi
+        for _, poi in sorted(
+            enumerate(raw_pois),
+            key=lambda item: (_amap_poi_search_score(item[1], keyword, normalized_city), -item[0]),
+            reverse=True,
+        )
+    ][:20]
     pois = []
-    for poi in data.get("pois", []):
+    for poi in raw_pois:
         normalized = normalize_amap_poi(poi)
         if normalized:
             pois.append(normalized)
@@ -877,6 +1014,16 @@ async def search_places(
             "count": len(pois),
         },
     }
+
+
+@app.get("/api/developer/search")
+async def search_developer_places(
+    request: Request,
+    q: str = Query(..., min_length=1, max_length=80),
+    city: str = Query("", max_length=40),
+) -> dict[str, Any]:
+    read_developer_account(request)
+    return await search_places(q=q, city=city)
 
 
 @app.get("/api/regeo")
@@ -930,6 +1077,16 @@ async def reverse_geocode(
     }
 
 
+@app.get("/api/developer/regeo")
+async def reverse_geocode_for_developer(
+    request: Request,
+    lng: float = Query(...),
+    lat: float = Query(...),
+) -> dict[str, Any]:
+    read_developer_account(request)
+    return await reverse_geocode(lng=lng, lat=lat)
+
+
 @app.get("/api/poi-detail")
 async def poi_detail(
     id: str = Query(..., min_length=1, max_length=80),
@@ -961,6 +1118,15 @@ async def poi_detail(
     if not normalized:
         raise HTTPException(status_code=404, detail="Amap POI detail has no location")
     return {"item": normalized}
+
+
+@app.get("/api/developer/poi-detail")
+async def developer_poi_detail(
+    request: Request,
+    id: str = Query(..., min_length=1, max_length=80),
+) -> dict[str, Any]:
+    read_developer_account(request)
+    return await poi_detail(id=id)
 
 
 @app.get("/api/admin/places", response_model=list[Place])
@@ -1129,6 +1295,9 @@ def reset_admin_author_password(account_id: int) -> dict[str, Any]:
 @app.post("/api/admin/places", response_model=Place)
 def create_place(payload: PlaceIn) -> dict[str, Any]:
     now = utc_now()
+    category_values = payload_category_values(payload)
+    primary_category = category_values[0] if category_values else ""
+    encoded_categories = encode_category_values(category_values)
     with db() as conn:
         duplicate = find_duplicate_place(conn, payload)
         if duplicate:
@@ -1140,11 +1309,11 @@ def create_place(payload: PlaceIn) -> dict[str, Any]:
                 provider_poi_id, name, address, lng, lat, city, district,
                 provider_category, phone, business_hours, amap_detail_url,
                 provider_detail_url,
-                my_category, rating, rating_author, recommend_level, review_url,
+                my_category, my_categories, rating, rating_author, recommend_level, review_url,
                 review_text, tags, note, visited_at,
                 cover_image, image_urls, hide_images, is_public, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 payload.map_provider,
@@ -1162,7 +1331,8 @@ def create_place(payload: PlaceIn) -> dict[str, Any]:
                 payload.business_hours,
                 payload.amap_detail_url,
                 payload.provider_detail_url,
-                payload.my_category,
+                primary_category,
+                encoded_categories,
                 payload.rating,
                 payload.rating_author,
                 payload.recommend_level,
@@ -1188,6 +1358,9 @@ def create_place(payload: PlaceIn) -> dict[str, Any]:
 @app.put("/api/admin/places/{place_id}", response_model=Place)
 def update_place(place_id: int, payload: PlaceIn) -> dict[str, Any]:
     now = utc_now()
+    category_values = payload_category_values(payload)
+    primary_category = category_values[0] if category_values else ""
+    encoded_categories = encode_category_values(category_values)
     with db() as conn:
         duplicate = find_duplicate_place(conn, payload, exclude_id=place_id)
         if duplicate:
@@ -1198,7 +1371,8 @@ def update_place(place_id: int, payload: PlaceIn) -> dict[str, Any]:
                 map_provider = ?, country_code = ?, coordinate_system = ?,
                 provider_poi_id = ?, name = ?, address = ?, lng = ?, lat = ?,
                 city = ?, district = ?, provider_category = ?, phone = ?,
-                business_hours = ?, amap_detail_url = ?, provider_detail_url = ?, my_category = ?,
+                business_hours = ?, amap_detail_url = ?, provider_detail_url = ?,
+                my_category = ?, my_categories = ?,
                 rating = ?, rating_author = ?, recommend_level = ?, review_url = ?,
                 review_text = ?, tags = ?, note = ?, visited_at = ?,
                 cover_image = ?, image_urls = ?, hide_images = ?,
@@ -1221,7 +1395,8 @@ def update_place(place_id: int, payload: PlaceIn) -> dict[str, Any]:
                 payload.business_hours,
                 payload.amap_detail_url,
                 payload.provider_detail_url,
-                payload.my_category,
+                primary_category,
+                encoded_categories,
                 payload.rating,
                 payload.rating_author,
                 payload.recommend_level,

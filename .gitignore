@@ -5,6 +5,8 @@
 backups/
 data/
 reports/
+output/
+.playwright-cli/
 __pycache__/
 *.pyc
 *.sqlite

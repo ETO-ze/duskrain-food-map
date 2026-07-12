@@ -1,11 +1,14 @@
 <script setup>
 import { computed, nextTick, ref } from "vue";
+import { Plus, X } from "@lucide/vue";
 import { countryOptions } from "../utils/countries";
+import { normalizeCategories } from "../utils/categories";
 import { renderReviewHtml } from "../utils/review";
 
 const props = defineProps({
   form: { type: Object, required: true },
   authorOptions: { type: Array, default: () => [] },
+  categoryOptions: { type: Array, default: () => [] },
   authorLocked: { type: Boolean, default: false },
 });
 
@@ -13,7 +16,36 @@ defineEmits(["save", "new", "delete"]);
 
 const reviewInput = ref(null);
 const reviewPreviewOpen = ref(true);
+const categoryDraft = ref("");
 const reviewPreviewHtml = computed(() => renderReviewHtml(props.form.review_text || ""));
+const selectedCategories = computed(() => normalizeCategories(
+  props.form.my_categories,
+  props.form.my_category || "",
+));
+const availableCategories = computed(() => [...new Set([
+  ...props.categoryOptions,
+  ...selectedCategories.value,
+])].sort((a, b) => a.localeCompare(b, "zh-CN")));
+
+function applyCategories(values) {
+  const categories = normalizeCategories(values);
+  props.form.my_categories = categories;
+  props.form.my_category = categories[0] || "";
+}
+
+function toggleCategory(category) {
+  const next = selectedCategories.value.includes(category)
+    ? selectedCategories.value.filter((item) => item !== category)
+    : [...selectedCategories.value, category];
+  applyCategories(next);
+}
+
+function addCategory() {
+  const categories = normalizeCategories([categoryDraft.value]);
+  if (!categories.length) return;
+  applyCategories([...selectedCategories.value, ...categories]);
+  categoryDraft.value = "";
+}
 
 function insertReviewText(before, after = "", placeholder = "内容") {
   const input = reviewInput.value;
@@ -36,9 +68,13 @@ function insertReviewLine(prefix, placeholder = "内容") {
   const text = String(props.form.review_text || "");
   const start = input?.selectionStart ?? text.length;
   const lineStart = text.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-  props.form.review_text = `${text.slice(0, lineStart)}${prefix}${text.slice(lineStart) || placeholder}`;
+  const lineEnd = text.indexOf("\n", lineStart);
+  const currentLineEnd = lineEnd === -1 ? text.length : lineEnd;
+  const currentLine = text.slice(lineStart, currentLineEnd);
+  const insertedText = currentLine ? prefix : `${prefix}${placeholder}`;
+  props.form.review_text = `${text.slice(0, lineStart)}${insertedText}${text.slice(lineStart)}`;
   nextTick(() => {
-    const position = lineStart + prefix.length + placeholder.length;
+    const position = lineStart + insertedText.length;
     reviewInput.value?.focus();
     reviewInput.value?.setSelectionRange(position, position);
   });
@@ -97,9 +133,48 @@ function insertReviewImage() {
     </div>
 
     <div class="form-section-label wide">我的评价</div>
-    <div class="field">
-      <label for="myCategory">我的分类</label>
-      <input id="myCategory" v-model="form.my_category" placeholder="火锅 / 咖啡 / 日料">
+    <div class="field wide category-field">
+      <label>我的菜系</label>
+      <div v-if="selectedCategories.length" class="category-selected" aria-label="已选菜系">
+        <button
+          v-for="category in selectedCategories"
+          :key="category"
+          class="category-chip"
+          type="button"
+          :aria-label="`移除菜系 ${category}`"
+          @click="toggleCategory(category)"
+        >
+          <span>{{ category }}</span>
+          <X :size="14" :stroke-width="1.8" aria-hidden="true" />
+        </button>
+      </div>
+      <details class="category-picker">
+        <summary>选择菜系 · 已选 {{ selectedCategories.length }}</summary>
+        <div class="category-option-list">
+          <label v-for="category in availableCategories" :key="category" class="category-option">
+            <input
+              type="checkbox"
+              :checked="selectedCategories.includes(category)"
+              @change="toggleCategory(category)"
+            >
+            <span>{{ category }}</span>
+          </label>
+          <p v-if="!availableCategories.length" class="subtle">还没有菜系，直接在下方新增。</p>
+        </div>
+      </details>
+      <div class="category-add-row">
+        <input
+          id="myCategory"
+          v-model="categoryDraft"
+          maxlength="40"
+          placeholder="新增菜系"
+          @keydown.enter.prevent="addCategory"
+        >
+        <button class="btn secondary compact" type="button" :disabled="!categoryDraft.trim()" @click="addCategory">
+          <Plus :size="16" :stroke-width="1.8" aria-hidden="true" />
+          <span>添加</span>
+        </button>
+      </div>
     </div>
     <div class="field">
       <label for="rating">评分</label>

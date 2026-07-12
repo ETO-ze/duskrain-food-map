@@ -8,6 +8,7 @@ import AdminPlaceList from "./AdminPlaceList.vue";
 import AdminPoiSearch from "./AdminPoiSearch.vue";
 import AdminSettings from "./AdminSettings.vue";
 import { deleteAdminPlace, getAdminAuthors, getAdminPlaces, getPoiDetail, reverseGeocode, saveAdminPlace } from "../utils/api";
+import { categoryPayload, placeCategories } from "../utils/categories";
 import {
   fetchGooglePlace,
   googleMarkerContent,
@@ -21,6 +22,8 @@ const statusLine = ref("");
 const places = ref([]);
 const authors = ref([]);
 const authorOptions = computed(() => authors.value.map((author) => author.author_name));
+const categoryOptions = computed(() => [...new Set(places.value.flatMap(placeCategories))]
+  .sort((a, b) => a.localeCompare(b, "zh-CN")));
 const markers = shallowRef([]);
 const labels = shallowRef([]);
 const markerLayer = shallowRef(null);
@@ -43,10 +46,7 @@ let movingTimer = 0;
 let renderTimer = 0;
 let lastHotspotClickAt = 0;
 let isMapMoving = false;
-let pointerStart = null;
-let pointerDragging = false;
 let renderedLabelSet = new Set();
-let mapElement = null;
 let scaleControl = null;
 let googleMapClickListener = null;
 const pendingTimers = new Set();
@@ -72,6 +72,7 @@ function newForm() {
     amap_detail_url: "",
     provider_detail_url: "",
     my_category: "",
+    my_categories: [],
     rating: null,
     rating_author: "吕俊泽",
     recommend_level: "",
@@ -92,20 +93,25 @@ function setStatus(message) {
 }
 
 function setActive(moduleName) {
+  setStatus("");
   activeModule.value = moduleName;
 }
 
 function resetForm() {
+  setStatus("");
   Object.assign(form, newForm());
   showMapProvider("amap");
   activeModule.value = "edit";
 }
 
 function fillFromPlace(place, includeId = true) {
+  const categories = placeCategories(place);
   Object.assign(form, {
     ...newForm(),
     ...place,
     id: includeId ? place.id || "" : "",
+    my_category: categories[0] || "",
+    my_categories: [...categories],
     rating: place.rating ?? null,
     rating_author: place.rating_author || "吕俊泽",
     hide_images: Boolean(place.hide_images),
@@ -114,6 +120,7 @@ function fillFromPlace(place, includeId = true) {
 }
 
 function readPayload() {
+  const categories = categoryPayload(form.my_categories, form.my_category);
   return {
     provider_poi_id: String(form.provider_poi_id || "").trim(),
     map_provider: form.map_provider === "google" ? "google" : "amap",
@@ -130,7 +137,7 @@ function readPayload() {
     business_hours: String(form.business_hours || "").trim(),
     amap_detail_url: String(form.amap_detail_url || "").trim(),
     provider_detail_url: String(form.provider_detail_url || form.amap_detail_url || "").trim(),
-    my_category: String(form.my_category || "").trim(),
+    ...categories,
     rating: form.rating === "" || form.rating == null ? null : Number(form.rating),
     rating_author: String(form.rating_author || "").trim(),
     recommend_level: form.recommend_level || "",
@@ -304,28 +311,6 @@ function endMapMove() {
   movingTimer = window.setTimeout(finishMapMove, 180);
 }
 
-function handlePointerDown(event) {
-  const point = event.touches?.[0] || event;
-  pointerStart = { x: point.clientX, y: point.clientY };
-  pointerDragging = false;
-}
-
-function handlePointerMove(event) {
-  if (!pointerStart || pointerDragging) return;
-  const point = event.touches?.[0] || event;
-  const dx = Math.abs(point.clientX - pointerStart.x);
-  const dy = Math.abs(point.clientY - pointerStart.y);
-  if (dx < 6 && dy < 6) return;
-  pointerDragging = true;
-  beginMapMove();
-}
-
-function handlePointerEnd() {
-  if (pointerDragging) endMapMove();
-  pointerStart = null;
-  pointerDragging = false;
-}
-
 function schedule(callback, delay) {
   const timer = window.setTimeout(() => {
     pendingTimers.delete(timer);
@@ -421,7 +406,8 @@ async function previewGooglePlace(place) {
   googleMap.value.panTo(position);
   googleMap.value.setZoom(15);
   googleInfoWindow.value.setContent(infoHtml(place, { deferImages: true }));
-  googleInfoWindow.value.open({ map: googleMap.value, position });
+  googleInfoWindow.value.setPosition(position);
+  googleInfoWindow.value.open({ map: googleMap.value, anchor: googlePreviewMarker.value });
   hydrateDeferredImages();
 }
 
@@ -449,15 +435,25 @@ async function previewSelected(place) {
 }
 
 async function selectPlace(place) {
+  setStatus("");
   fillFromPlace(place);
-  await previewSelected(place);
   activeModule.value = "edit";
+  try {
+    await previewSelected(place);
+  } catch (error) {
+    setStatus(`资料已载入，地图预览暂不可用：${error.message}`);
+  }
 }
 
 async function selectCandidate(candidate) {
+  setStatus("");
   fillFromPlace(candidate, false);
-  await previewSelected(candidate);
   activeModule.value = "edit";
+  try {
+    await previewSelected(candidate);
+  } catch (error) {
+    setStatus(`商家资料已填入，地图预览暂不可用：${error.message}`);
+  }
 }
 
 function findExistingPlace(candidate) {
@@ -682,18 +678,6 @@ onMounted(async () => {
     map.value.on("moveend", endMapMove);
     map.value.on("dragend", endMapMove);
     map.value.on("zoomend", handleZoomEnd);
-    mapElement = document.getElementById("adminMap");
-    mapElement?.addEventListener("pointerdown", handlePointerDown, { passive: true });
-    mapElement?.addEventListener("pointermove", handlePointerMove, { passive: true });
-    mapElement?.addEventListener("mousedown", handlePointerDown, { passive: true });
-    mapElement?.addEventListener("mousemove", handlePointerMove, { passive: true });
-    mapElement?.addEventListener("touchstart", handlePointerDown, { passive: true });
-    mapElement?.addEventListener("touchmove", handlePointerMove, { passive: true });
-    window.addEventListener("pointerup", handlePointerEnd, { passive: true });
-    window.addEventListener("pointercancel", handlePointerEnd, { passive: true });
-    window.addEventListener("mouseup", handlePointerEnd, { passive: true });
-    window.addEventListener("touchend", handlePointerEnd, { passive: true });
-    window.addEventListener("touchcancel", handlePointerEnd, { passive: true });
     scaleControl = new AMapRef.value.Scale();
     map.value.addControl(scaleControl);
     infoWindow.value = new AMapRef.value.InfoWindow({
@@ -719,18 +703,6 @@ onUnmounted(() => {
   pendingTimers.forEach((timer) => window.clearTimeout(timer));
   pendingTimers.clear();
   document.body.classList.remove("map-moving", "map-day");
-
-  mapElement?.removeEventListener("pointerdown", handlePointerDown);
-  mapElement?.removeEventListener("pointermove", handlePointerMove);
-  mapElement?.removeEventListener("mousedown", handlePointerDown);
-  mapElement?.removeEventListener("mousemove", handlePointerMove);
-  mapElement?.removeEventListener("touchstart", handlePointerDown);
-  mapElement?.removeEventListener("touchmove", handlePointerMove);
-  window.removeEventListener("pointerup", handlePointerEnd);
-  window.removeEventListener("pointercancel", handlePointerEnd);
-  window.removeEventListener("mouseup", handlePointerEnd);
-  window.removeEventListener("touchend", handlePointerEnd);
-  window.removeEventListener("touchcancel", handlePointerEnd);
 
   if (map.value) {
     map.value.off("complete", handleMapComplete);
@@ -761,7 +733,6 @@ onUnmounted(() => {
   markerLayer.value = null;
   map.value = null;
   AMapRef.value = null;
-  mapElement = null;
   scaleControl = null;
 });
 </script>
@@ -779,6 +750,7 @@ onUnmounted(() => {
       <AdminPlaceList
         v-if="activeModule === 'list'"
         :places="places"
+        enable-category-filter
         @new="resetForm"
         @edit="selectPlace"
         @delete="removePlace"
@@ -801,6 +773,7 @@ onUnmounted(() => {
         v-if="activeModule === 'edit'"
         :form="form"
         :author-options="authorOptions"
+        :category-options="categoryOptions"
         @save="savePlace"
         @new="resetForm"
         @delete="removePlace"
