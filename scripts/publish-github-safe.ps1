@@ -38,6 +38,7 @@ $publishPaths = @(
     "frontend/scripts",
     "frontend/src",
     "scripts",
+    "Start Food Map.cmd",
     "Publish to GitHub.cmd"
 )
 
@@ -80,7 +81,12 @@ function Get-PublishFiles {
             $files += Get-Item -LiteralPath $path
         }
     }
-    return $files | Sort-Object FullName -Unique
+    return $files |
+        Where-Object {
+            $_.Extension -ne ".pyc" -and
+            $_.FullName -notmatch "[\\/]__pycache__[\\/]"
+        } |
+        Sort-Object FullName -Unique
 }
 
 function Assert-PublishFilesSafe {
