@@ -4,10 +4,14 @@
 
 backups/
 data/
+!frontend/public/data/
+!frontend/public/data/guides/
+!frontend/public/data/guides/*.json
 reports/
 output/
 .playwright-cli/
 __pycache__/
+.venv/
 *.pyc
 *.sqlite
 *.sqlite-shm

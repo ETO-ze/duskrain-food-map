@@ -1,0 +1,1438 @@
+html.lu-guide-open,
+body.lu-guide-open {
+  height: auto;
+  min-height: 100%;
+  overflow: auto;
+  scroll-behavior: smooth;
+  background: #111112;
+}
+
+body.lu-guide-open #app {
+  height: auto;
+  min-height: 100%;
+}
+
+body.lu-intro-active {
+  overflow: hidden;
+}
+
+.lu-guide {
+  --lu-ink: #111112;
+  --lu-ink-soft: #1a1818;
+  --lu-paper: #ece5d8;
+  --lu-paper-soft: #e2d8c7;
+  --lu-type-dark: #25211e;
+  --lu-ivory: #eee7d9;
+  --lu-sand: #c4b79f;
+  --lu-copper: #b38b5f;
+  --lu-copper-dim: #80694f;
+  --lu-wine: #511826;
+  --lu-rain: #829a98;
+  --lu-line-light: rgba(238, 231, 217, 0.22);
+  --lu-line-dark: rgba(37, 33, 30, 0.18);
+  width: 100%;
+  min-height: 100svh;
+  overflow: clip;
+  background: var(--lu-ink);
+  color: var(--lu-ivory);
+  font-family: Georgia, "Times New Roman", serif;
+  font-feature-settings: "liga" 1, "kern" 1;
+}
+
+.lu-guide *,
+.lu-guide *::before,
+.lu-guide *::after {
+  box-sizing: border-box;
+}
+
+.lu-guide button,
+.lu-guide a {
+  font: inherit;
+}
+
+.lu-guide button:focus-visible,
+.lu-guide a:focus-visible {
+  outline: 2px solid var(--lu-rain);
+  outline-offset: 4px;
+}
+
+.lu-guide h1,
+.lu-guide h2,
+.lu-guide h3,
+.lu-guide p {
+  margin-top: 0;
+}
+
+.lu-guide h2 {
+  font-size: clamp(2.3rem, 5vw, 5rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.lu-guide .lu-eyebrow {
+  margin-bottom: 20px;
+  color: var(--lu-copper);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.24em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.lu-nav {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 76px;
+  padding: 0 clamp(24px, 4.5vw, 80px);
+  border-bottom: 1px solid rgba(238, 231, 217, 0.14);
+  background: rgba(17, 17, 18, 0.86);
+  backdrop-filter: blur(16px);
+}
+
+.lu-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--lu-ivory);
+  text-decoration: none;
+}
+
+.lu-nav-brand > .lu-drop-group {
+  width: 22px;
+  height: 32px;
+}
+
+.lu-nav-brand > .lu-drop-group svg {
+  width: 22px;
+}
+
+.lu-nav-brand > span {
+  display: grid;
+  line-height: 0.9;
+}
+
+.lu-nav-brand strong {
+  font-size: 1.2rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.lu-nav-brand small {
+  margin-top: 5px;
+  color: var(--lu-sand);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.48rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.lu-nav nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(18px, 2.6vw, 42px);
+}
+
+.lu-nav nav button,
+.lu-nav nav a {
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: var(--lu-sand);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition: color 180ms ease;
+}
+
+.lu-nav nav button:hover,
+.lu-nav nav a:hover {
+  color: var(--lu-ivory);
+}
+
+.lu-nav nav a {
+  padding: 10px 16px;
+  border: 1px solid var(--lu-copper-dim);
+}
+
+.lu-menu-button {
+  display: none;
+}
+
+.lu-hero {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: max(780px, 100svh);
+  padding: 120px 80px 72px;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 74% 26%, rgba(81, 24, 38, 0.26), transparent 28%),
+    radial-gradient(circle at 22% 78%, rgba(130, 154, 152, 0.08), transparent 26%),
+    linear-gradient(145deg, #151414 0%, #0d0e10 58%, #151111 100%);
+}
+
+.lu-hero::before,
+.lu-hero::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.lu-hero::before {
+  inset: 98px clamp(22px, 3.5vw, 62px) 30px;
+  border: 1px solid rgba(179, 139, 95, 0.2);
+}
+
+.lu-hero::after {
+  inset: 0;
+  z-index: -1;
+  opacity: 0.2;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.11'/%3E%3C/svg%3E");
+}
+
+.lu-rain-curtain {
+  position: absolute;
+  inset: 76px 12% 0 auto;
+  width: 1px;
+  opacity: 0.5;
+  background: linear-gradient(180deg, transparent, rgba(130, 154, 152, 0.45) 22%, transparent 70%);
+  box-shadow: -110px 100px rgba(130, 154, 152, 0.08), 82px -70px rgba(179, 139, 95, 0.08), 180px 160px rgba(130, 154, 152, 0.07), -260px -10px rgba(179, 139, 95, 0.06);
+}
+
+.lu-hero-aside {
+  position: absolute;
+  top: 50%;
+  left: clamp(26px, 4.5vw, 78px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  color: var(--lu-copper-dim);
+  font-family: "Segoe UI", Arial, sans-serif;
+  transform: translateY(-42%);
+}
+
+.lu-hero-aside > span {
+  font-size: 0.64rem;
+  letter-spacing: 0.2em;
+}
+
+.lu-hero-aside i {
+  width: 1px;
+  height: 112px;
+  background: linear-gradient(var(--lu-copper-dim), transparent);
+}
+
+.lu-hero-aside small {
+  font-size: 0.54rem;
+  letter-spacing: 0.2em;
+  writing-mode: vertical-rl;
+}
+
+.lu-hero-inner {
+  position: relative;
+  z-index: 2;
+  width: min(820px, 100%);
+  text-align: center;
+}
+
+.lu-hero-kicker {
+  margin-bottom: 8px;
+  color: var(--lu-rain);
+  font-size: clamp(0.9rem, 1.2vw, 1.08rem);
+  font-style: italic;
+  letter-spacing: 0.04em;
+}
+
+.lu-hero-year {
+  margin: 12px 0 -12px;
+  color: var(--lu-copper);
+  font-size: clamp(4.5rem, 10vw, 9rem);
+  font-weight: 400;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+}
+
+.lu-hero h1 {
+  margin: 0;
+  color: var(--lu-ivory);
+  font-family: "ZCOOL XiaoWei", "STSong", "Songti SC", serif;
+  font-size: clamp(3.8rem, 7.2vw, 7.5rem);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
+}
+
+.lu-hero-wordmark {
+  margin: 6px 0 0;
+  color: var(--lu-rain);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.34em;
+}
+
+.lu-signature {
+  margin: 8px 0 0;
+  color: var(--lu-sand);
+  font-family: "Italianno", "Snell Roundhand", cursive;
+  font-size: clamp(2.8rem, 5.6vw, 5rem);
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 0.88;
+}
+
+.lu-fine-divider {
+  display: grid;
+  grid-template-columns: 1fr 22px 1fr;
+  align-items: center;
+  gap: 12px;
+  width: min(350px, 70%);
+  margin: 22px auto 17px;
+}
+
+.lu-fine-divider > span {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--lu-copper-dim));
+}
+
+.lu-fine-divider > span:last-child {
+  background: linear-gradient(90deg, var(--lu-copper-dim), transparent);
+}
+
+.lu-fine-divider .lu-drop-group,
+.lu-fine-divider svg {
+  width: 18px;
+  height: 24px;
+}
+
+.lu-publication,
+.lu-period {
+  color: var(--lu-sand);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.lu-hero h2 {
+  margin: 30px 0 12px;
+  font-size: clamp(1.65rem, 3vw, 2.8rem);
+  letter-spacing: -0.02em;
+}
+
+.lu-hero-body {
+  width: min(570px, 100%);
+  margin: 0 auto;
+  color: var(--lu-sand);
+  font-size: clamp(1rem, 1.5vw, 1.18rem);
+  line-height: 1.75;
+}
+
+.lu-hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 28px 0 24px;
+}
+
+.lu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 24px;
+  border-radius: 0;
+  font-family: "Segoe UI", Arial, sans-serif !important;
+  font-size: 0.76rem !important;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.lu-button:hover {
+  transform: translateY(-2px);
+}
+
+.lu-button-primary {
+  border: 1px solid var(--lu-copper);
+  background: var(--lu-wine);
+  color: var(--lu-ivory);
+}
+
+.lu-button-primary:hover {
+  background: #672033;
+}
+
+.lu-button-quiet {
+  border: 1px solid var(--lu-copper-dim);
+  background: transparent;
+  color: var(--lu-ivory);
+}
+
+.lu-scroll-cue {
+  position: absolute;
+  right: clamp(24px, 4vw, 70px);
+  bottom: 46px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: none;
+  color: var(--lu-copper);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.lu-scroll-cue span {
+  width: 54px;
+  height: 1px;
+  background: var(--lu-copper-dim);
+}
+
+.lu-paper-section,
+.lu-ink-section {
+  position: relative;
+  padding: clamp(90px, 11vw, 170px) clamp(26px, 7vw, 120px);
+  scroll-margin-top: 74px;
+}
+
+.lu-paper-section {
+  background:
+    linear-gradient(rgba(37, 33, 30, 0.035) 1px, transparent 1px),
+    var(--lu-paper);
+  background-size: 100% 32px;
+  color: var(--lu-type-dark);
+}
+
+.lu-ink-section {
+  background: var(--lu-ink-soft);
+  color: var(--lu-ivory);
+}
+
+.lu-section-number {
+  position: absolute;
+  top: 42px;
+  right: clamp(26px, 5vw, 82px);
+  color: currentColor;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  opacity: 0.45;
+}
+
+.lu-invitation {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(480px, 1.35fr);
+  align-items: center;
+  gap: clamp(60px, 10vw, 160px);
+  min-height: 860px;
+}
+
+.lu-invitation::before {
+  content: "";
+  position: absolute;
+  inset: 38px;
+  border: 1px solid var(--lu-line-dark);
+  pointer-events: none;
+}
+
+.lu-invitation-seal {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  border-right: 1px solid var(--lu-line-dark);
+  padding-right: clamp(40px, 7vw, 110px);
+}
+
+.lu-edition-seal {
+  width: min(320px, 100%);
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.lu-seal-ring {
+  fill: currentColor;
+  stroke: none;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 8px;
+  letter-spacing: 2.4px;
+}
+
+.lu-seal-drop {
+  stroke-width: 1.25;
+}
+
+.lu-seal-vein,
+.lu-seal-ripple {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 0.9;
+}
+
+.lu-seal-core {
+  fill: currentColor;
+  stroke: none;
+}
+
+.lu-seal-year {
+  fill: currentColor;
+  stroke: none;
+  font-size: 29px;
+}
+
+.lu-seal-edition {
+  fill: currentColor;
+  stroke: none;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 6.5px;
+  letter-spacing: 2px;
+}
+
+.lu-seal-divider {
+  stroke-width: 0.7;
+}
+
+.lu-seal-credit {
+  fill: currentColor;
+  stroke: none;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 5.8px;
+  letter-spacing: 1.55px;
+}
+
+.lu-invitation-seal .lu-signature {
+  margin-top: 34px;
+  color: var(--lu-wine);
+  font-size: clamp(2.8rem, 4.2vw, 4rem);
+}
+
+.lu-invitation-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+}
+
+.lu-invitation-copy h2 {
+  margin-bottom: 44px;
+}
+
+.lu-invitation-copy > p:not(.lu-eyebrow) {
+  max-width: 660px;
+  margin-bottom: 22px;
+  font-size: clamp(1.02rem, 1.35vw, 1.2rem);
+  line-height: 1.9;
+}
+
+.lu-invitation-copy > strong {
+  display: block;
+  margin-top: 42px;
+  color: var(--lu-wine);
+  font-size: 1.08rem;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.lu-manifesto {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(520px, 1.25fr);
+  gap: clamp(70px, 10vw, 170px);
+}
+
+.lu-manifesto-heading h2 {
+  max-width: 560px;
+}
+
+.lu-manifesto-body > p {
+  max-width: 650px;
+  color: var(--lu-sand);
+  font-size: clamp(1.12rem, 1.7vw, 1.42rem);
+  line-height: 1.85;
+}
+
+.lu-manifesto ol {
+  margin: 54px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--lu-line-light);
+}
+
+.lu-manifesto li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--lu-line-light);
+  font-size: 1.08rem;
+}
+
+.lu-manifesto li span {
+  color: var(--lu-copper);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+}
+
+.lu-section-heading {
+  max-width: 750px;
+  margin-bottom: 70px;
+}
+
+.lu-section-heading > p:not(.lu-eyebrow),
+.lu-methodology-intro > p:not(.lu-eyebrow),
+.lu-archive-copy > p:not(.lu-eyebrow) {
+  max-width: 660px;
+  font-size: 1.12rem;
+  line-height: 1.75;
+}
+
+.lu-category-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--lu-line-dark);
+  border-bottom: 1px solid var(--lu-line-dark);
+}
+
+.lu-category-grid article {
+  position: relative;
+  min-height: 340px;
+  padding: 28px clamp(20px, 2.4vw, 42px) 38px;
+  border-right: 1px solid var(--lu-line-dark);
+}
+
+.lu-category-grid article:last-child {
+  border-right: 0;
+}
+
+.lu-category-grid article > span {
+  color: var(--lu-wine);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+}
+
+.lu-category-grid h3 {
+  margin: 84px 0 8px;
+  font-size: clamp(1.55rem, 2.3vw, 2.35rem);
+  font-weight: 400;
+}
+
+.lu-item-fr {
+  display: block;
+  color: var(--lu-copper-dim);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.lu-category-grid .lu-item-fr {
+  margin-bottom: 22px;
+  color: var(--lu-wine);
+}
+
+.lu-category-grid p {
+  max-width: 290px;
+  color: #625b52;
+  line-height: 1.65;
+}
+
+.lu-category-glyph {
+  position: absolute;
+  top: 66px;
+  right: 30px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 46px;
+  opacity: 0.75;
+}
+
+.lu-category-glyph i {
+  display: block;
+  width: 1px;
+  height: 28px;
+  background: var(--lu-rain);
+  transform: rotate(18deg);
+}
+
+.lu-category-glyph i:nth-child(2) { height: 42px; }
+.lu-category-glyph i:nth-child(3) { height: 19px; }
+
+.lu-distinction-section {
+  background:
+    radial-gradient(circle at 50% 0, rgba(81, 24, 38, 0.24), transparent 34%),
+    #131315;
+}
+
+.lu-section-heading-light > p:not(.lu-eyebrow) {
+  color: var(--lu-sand);
+}
+
+.lu-distinction-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid var(--lu-line-light);
+  border-bottom: 1px solid var(--lu-line-light);
+}
+
+.lu-distinction-grid article {
+  min-width: 0;
+  min-height: 520px;
+  padding: 50px clamp(18px, 2vw, 34px) 38px;
+  border-right: 1px solid var(--lu-line-light);
+}
+
+.lu-distinction-grid article:last-child {
+  border-right: 0;
+}
+
+.lu-drop-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  color: var(--lu-copper);
+}
+
+.lu-drop-group svg {
+  width: min(72px, 33%);
+  height: 96px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.15;
+}
+
+.lu-rain-core {
+  fill: currentColor;
+  stroke: none;
+}
+
+.lu-rain-vein,
+.lu-ripple {
+  opacity: 0.78;
+}
+
+.lu-pick-mark {
+  display: grid;
+  place-items: center;
+  height: 96px;
+  color: var(--lu-rain);
+}
+
+.lu-pick-mark svg {
+  width: 96px;
+  height: 96px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+}
+
+.lu-pick-dashes {
+  stroke-dasharray: 1 8.4;
+  stroke-linecap: round;
+  stroke-width: 2.6;
+}
+
+.lu-selected-mark {
+  display: grid;
+  grid-template-columns: 1fr 42px 1fr;
+  align-items: center;
+  gap: 8px;
+  height: 96px;
+  color: var(--lu-rain);
+}
+
+.lu-selected-mark span {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, currentColor);
+}
+
+.lu-selected-mark span:last-child {
+  background: linear-gradient(90deg, currentColor, transparent);
+}
+
+.lu-selected-mark svg {
+  width: 42px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.lu-distinction-index {
+  margin: 36px 0 16px !important;
+  color: var(--lu-copper-dim) !important;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.6rem !important;
+  letter-spacing: 0.18em;
+}
+
+.lu-distinction-grid h3 {
+  min-height: 0;
+  margin: 0 0 8px;
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.lu-distinction-grid .lu-item-fr {
+  min-height: 35px;
+  margin-bottom: 14px;
+}
+
+.lu-distinction-grid strong {
+  display: block;
+  min-height: 48px;
+  color: var(--lu-ivory);
+  font-size: 0.96rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.lu-distinction-grid article > p:last-child {
+  margin-top: 18px;
+  color: var(--lu-sand);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.lu-methodology {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.72fr) minmax(520px, 1.28fr);
+  gap: clamp(70px, 10vw, 170px);
+}
+
+.lu-methodology-intro {
+  position: sticky;
+  top: 120px;
+  align-self: start;
+}
+
+.lu-evaluation-compass {
+  display: block;
+  width: min(390px, 100%);
+  margin: 46px auto 0;
+  overflow: visible;
+  color: var(--lu-wine);
+}
+
+.lu-compass-ring,
+.lu-compass-axis {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.8;
+  opacity: 0.48;
+}
+
+.lu-compass-ring-outer {
+  stroke-width: 1.2;
+  opacity: 0.72;
+}
+
+.lu-compass-axis {
+  stroke-dasharray: 3 5;
+}
+
+.lu-compass-label-main,
+.lu-compass-label-fr,
+.lu-compass-center {
+  fill: currentColor;
+  stroke: none;
+}
+
+.lu-compass-label-main {
+  font-family: "ZCOOL XiaoWei", "STSong", "Songti SC", serif;
+  font-size: 17px;
+}
+
+.lu-compass-label-fr,
+.lu-compass-center {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 6.5px;
+  letter-spacing: 1.5px;
+}
+
+.lu-compass-label-fr {
+  opacity: 0.72;
+}
+
+.lu-compass-drop path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.3;
+}
+
+.lu-compass-drop circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.lu-method-list {
+  border-top: 1px solid var(--lu-line-dark);
+}
+
+.lu-method-list article {
+  display: grid;
+  grid-template-columns: 54px minmax(180px, 0.7fr) 1.3fr;
+  gap: 24px;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--lu-line-dark);
+}
+
+.lu-method-list article > span {
+  color: var(--lu-wine);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+}
+
+.lu-method-list h3 {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 400;
+}
+
+.lu-method-list p {
+  margin: 0;
+  color: #625b52;
+  line-height: 1.65;
+}
+
+.lu-method-note {
+  grid-column: 2;
+  max-width: 680px;
+  margin: -60px 0 0;
+  padding-left: 78px;
+  color: var(--lu-wine);
+  font-style: italic;
+  line-height: 1.65;
+}
+
+.lu-score-selection {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(520px, 1.15fr);
+  gap: clamp(70px, 10vw, 170px);
+}
+
+.lu-score-heading h2 {
+  max-width: 620px;
+}
+
+.lu-score-copy {
+  align-self: center;
+  max-width: 680px;
+}
+
+.lu-score-copy p {
+  color: var(--lu-sand);
+  font-size: clamp(1.02rem, 1.4vw, 1.2rem);
+  line-height: 1.85;
+}
+
+.lu-score-copy strong {
+  display: block;
+  margin: 42px 0 26px;
+  padding: 28px 0;
+  border-top: 1px solid var(--lu-line-light);
+  border-bottom: 1px solid var(--lu-line-light);
+  color: var(--lu-ivory);
+  font-family: "ZCOOL XiaoWei", "STSong", "Songti SC", serif;
+  font-size: clamp(2rem, 3.8vw, 4rem);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.lu-annual-section {
+  position: relative;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 760px);
+  justify-content: center;
+  gap: clamp(40px, 7vw, 100px);
+  padding: clamp(100px, 13vw, 190px) 30px;
+  background: var(--lu-wine);
+  color: var(--lu-ivory);
+}
+
+.lu-annual-section h2 {
+  max-width: 760px;
+}
+
+.lu-annual-section div > p:last-child {
+  max-width: 670px;
+  color: #d4c9b7;
+  font-size: 1.1rem;
+  line-height: 1.85;
+}
+
+.lu-annual-section .lu-annual-policy {
+  max-width: 670px;
+  margin: 34px 0 20px;
+  color: var(--lu-ivory);
+  font-size: 1.08rem;
+  line-height: 1.85;
+}
+
+.lu-annual-mark .lu-drop-group,
+.lu-annual-mark svg {
+  width: 120px;
+  height: 160px;
+  color: rgba(238, 231, 217, 0.55);
+}
+
+.lu-release-section {
+  padding: clamp(90px, 10vw, 160px) clamp(24px, 6vw, 100px);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(81, 24, 38, 0.23), transparent 46%),
+    #101011;
+}
+
+.lu-release-frame {
+  display: grid;
+  justify-items: center;
+  width: min(1060px, 100%);
+  margin: 0 auto;
+  padding: clamp(55px, 7vw, 100px) clamp(24px, 7vw, 110px);
+  border: 1px solid var(--lu-copper-dim);
+  text-align: center;
+}
+
+.lu-release-frame .lu-edition-seal {
+  width: 190px;
+  margin: 4px 0 32px;
+  color: var(--lu-copper);
+}
+
+.lu-release-frame h2 {
+  margin-bottom: 24px;
+}
+
+.lu-release-frame > p:not(.lu-eyebrow) {
+  max-width: 650px;
+  color: var(--lu-sand);
+  font-size: 1.08rem;
+  line-height: 1.8;
+}
+
+.lu-release-frame dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  margin: 50px 0;
+  border-top: 1px solid var(--lu-line-light);
+  border-bottom: 1px solid var(--lu-line-light);
+}
+
+.lu-release-frame dl > div {
+  padding: 24px;
+  border-right: 1px solid var(--lu-line-light);
+}
+
+.lu-release-frame dl > div:last-child { border-right: 0; }
+
+.lu-release-frame dt {
+  color: var(--lu-copper);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.lu-release-frame dd {
+  margin: 10px 0 0;
+  font-size: 1rem;
+}
+
+.lu-empty-selection {
+  margin: 30px 0;
+  color: var(--lu-sand);
+}
+
+.lu-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  width: 100%;
+  gap: 1px;
+  margin: 40px 0;
+  background: var(--lu-line-light);
+}
+
+.lu-entry-grid article {
+  padding: 28px;
+  background: var(--lu-ink);
+  text-align: left;
+}
+
+.lu-archive-section {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(460px, 1.2fr);
+  align-items: end;
+  gap: clamp(60px, 10vw, 160px);
+}
+
+.lu-volume {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  align-items: center;
+  min-height: 150px;
+  padding: 28px 36px;
+  border-top: 1px solid var(--lu-type-dark);
+  border-bottom: 1px solid var(--lu-type-dark);
+  color: var(--lu-type-dark);
+  text-decoration: none;
+  transition: padding 180ms ease, color 180ms ease;
+}
+
+.lu-volume:hover {
+  padding-right: 26px;
+  padding-left: 46px;
+  color: var(--lu-wine);
+}
+
+.lu-volume span {
+  font-size: 2.4rem;
+}
+
+.lu-volume strong {
+  font-family: "Italianno", "Snell Roundhand", cursive;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.lu-volume small {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+}
+
+.lu-footer {
+  padding: 80px clamp(28px, 7vw, 120px) 32px;
+  border-top: 1px solid var(--lu-line-light);
+  background: #0c0c0d;
+}
+
+.lu-footer-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 30px;
+}
+
+.lu-footer-brand strong {
+  font-size: clamp(2.4rem, 5vw, 5rem);
+  font-weight: 400;
+}
+
+.lu-footer-brand span {
+  color: var(--lu-copper);
+  font-family: "Italianno", "Snell Roundhand", cursive;
+  font-size: clamp(2.2rem, 3.2vw, 3.4rem);
+  font-style: normal;
+}
+
+.lu-footer-tagline {
+  margin: 18px 0 70px;
+  color: var(--lu-rain);
+  font-size: 1.05rem;
+  font-style: italic;
+}
+
+.lu-footer-legal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 50px;
+  padding: 28px 0;
+  border-top: 1px solid var(--lu-line-light);
+  color: #8f877b;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.7rem;
+  line-height: 1.7;
+}
+
+.lu-footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 24px;
+  border-top: 1px solid var(--lu-line-light);
+  color: var(--lu-copper-dim);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.lu-load-error {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 20px;
+  min-height: 100svh;
+  padding: 30px;
+  text-align: center;
+}
+
+.lu-load-error .lu-drop-group,
+.lu-load-error svg { width: 60px; }
+
+.lu-ceremony {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  background: #0b0b0c;
+  color: var(--lu-ivory);
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+
+.lu-ceremony.is-leaving {
+  opacity: 0;
+  transform: translateY(-18px);
+}
+
+.lu-intro-skip {
+  position: absolute;
+  top: 28px;
+  right: 34px;
+  padding: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--lu-copper-dim);
+  background: none;
+  color: var(--lu-sand);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.68rem;
+}
+
+.lu-ceremony-line {
+  width: 1px;
+  height: 84px;
+  margin-bottom: 20px;
+  background: var(--lu-copper);
+  transform-origin: top;
+  animation: lu-line-open 700ms ease both;
+}
+
+.lu-ceremony-mark {
+  width: 58px;
+  animation: lu-fade-up 600ms 450ms ease both;
+}
+
+.lu-ceremony p {
+  margin: 24px 0 0;
+  color: var(--lu-sand);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  animation: lu-fade-up 500ms 800ms ease both;
+}
+
+.lu-ceremony strong {
+  margin-top: 12px;
+  font-size: 4rem;
+  font-weight: 400;
+  line-height: 1;
+  animation: lu-fade-up 500ms 1100ms ease both;
+}
+
+.lu-ceremony > span {
+  margin-top: 8px;
+  font-family: "Italianno", "Snell Roundhand", cursive;
+  font-size: 3rem;
+  letter-spacing: 0;
+  animation: lu-letter-open 800ms 1350ms ease both;
+}
+
+@keyframes lu-line-open { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes lu-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes lu-letter-open { from { opacity: 0; letter-spacing: 0.5em; } to { opacity: 1; letter-spacing: 0.18em; } }
+
+.lu-guide [data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 720ms ease, transform 720ms ease;
+}
+
+.lu-guide [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.annual-guide-wrap {
+  position: relative;
+  margin-top: 16px;
+}
+
+.annual-guide-entry {
+  display: grid;
+  gap: 5px;
+  padding: 12px 44px 12px 14px;
+  border: 1px solid rgba(179, 139, 95, 0.46);
+  background: linear-gradient(135deg, rgba(81, 24, 38, 0.34), rgba(17, 17, 18, 0.5));
+  color: #eee7d9;
+  text-decoration: none;
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.annual-guide-entry:hover {
+  border-color: rgba(179, 139, 95, 0.75);
+  transform: translateY(-1px);
+}
+
+.annual-guide-entry span,
+.annual-guide-entry small {
+  color: #b38b5f;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.annual-guide-entry strong {
+  font-family: Georgia, serif;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.annual-guide-dismiss {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #d8c8b6;
+  cursor: pointer;
+}
+
+.annual-guide-dismiss:hover,
+.annual-guide-dismiss:focus-visible {
+  border-color: rgba(179, 139, 95, 0.65);
+  background: rgba(17, 17, 18, 0.22);
+  color: #fffaf0;
+}
+
+@media (max-width: 1100px) {
+  .lu-distinction-grid { grid-template-columns: repeat(6, 1fr); }
+  .lu-distinction-grid article { grid-column: span 2; }
+  .lu-distinction-grid article:nth-last-child(-n + 2) { grid-column: span 3; }
+  .lu-distinction-grid article:nth-child(3) { border-right: 0; }
+  .lu-distinction-grid article:nth-child(-n + 3) { border-bottom: 1px solid var(--lu-line-light); }
+  .lu-category-grid { grid-template-columns: repeat(2, 1fr); }
+  .lu-category-grid article:nth-child(2) { border-right: 0; }
+  .lu-category-grid article:nth-child(-n + 2) { border-bottom: 1px solid var(--lu-line-dark); }
+}
+
+@media (max-width: 900px) {
+  .lu-nav { height: 68px; }
+  .lu-menu-button {
+    display: grid;
+    grid-template-columns: 22px auto;
+    align-items: center;
+    gap: 2px 10px;
+    border: 0;
+    background: none;
+    color: var(--lu-ivory);
+  }
+  .lu-menu-button span { display: block; width: 22px; height: 1px; background: currentColor; }
+  .lu-menu-button b { grid-column: 2; grid-row: 1 / span 2; font-family: "Segoe UI", Arial, sans-serif; font-size: 0.62rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; }
+  .lu-nav nav {
+    position: absolute;
+    inset: 68px 0 auto;
+    display: grid;
+    gap: 0;
+    padding: 12px 28px 24px;
+    border-bottom: 1px solid var(--lu-line-light);
+    background: rgba(17, 17, 18, 0.98);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .lu-nav nav.is-open { opacity: 1; pointer-events: auto; transform: none; }
+  .lu-nav nav button, .lu-nav nav a { width: 100%; padding: 13px 0; border: 0; border-bottom: 1px solid var(--lu-line-light); text-align: left; }
+  .lu-hero { padding-right: 44px; padding-left: 44px; }
+  .lu-hero-aside, .lu-scroll-cue { display: none; }
+  .lu-invitation, .lu-manifesto, .lu-methodology, .lu-score-selection, .lu-archive-section { grid-template-columns: 1fr; }
+  .lu-invitation { gap: 70px; }
+  .lu-invitation-seal { border-right: 0; border-bottom: 1px solid var(--lu-line-dark); padding: 0 0 60px; }
+  .lu-manifesto, .lu-methodology { gap: 70px; }
+  .lu-methodology-intro { position: static; }
+  .lu-evaluation-compass { width: min(360px, 86vw); margin-top: 36px; }
+  .lu-method-note { grid-column: 1; margin: -32px 0 0; }
+  .lu-archive-section { align-items: start; }
+}
+
+@media (max-width: 680px) {
+  .lu-guide h2 { font-size: clamp(2.2rem, 12vw, 3.6rem); }
+  .lu-nav { padding: 0 20px; }
+  .lu-hero { min-height: max(720px, 100svh); padding: 106px 24px 54px; }
+  .lu-hero::before { inset: 84px 12px 14px; }
+  .lu-hero-year { margin-top: 26px; font-size: clamp(4.5rem, 24vw, 7rem); }
+  .lu-hero h1 { font-size: clamp(3rem, 15vw, 4.7rem); line-height: 1.05; letter-spacing: 0.05em; }
+  .lu-hero-wordmark { margin-top: 6px; font-size: 0.56rem; letter-spacing: 0.28em; }
+  .lu-hero .lu-signature { font-size: 3rem; }
+  .lu-publication, .lu-period { font-size: 0.6rem; line-height: 1.6; }
+  .lu-hero h2 { margin-top: 22px; font-size: 1.7rem; }
+  .lu-hero-body { font-size: 0.98rem; line-height: 1.6; }
+  .lu-hero-actions { flex-direction: column; align-items: stretch; width: min(320px, 100%); margin-right: auto; margin-left: auto; }
+  .lu-paper-section, .lu-ink-section { padding: 94px 24px; }
+  .lu-section-number { top: 26px; right: 24px; }
+  .lu-invitation { min-height: 0; }
+  .lu-invitation::before { inset: 14px; }
+  .lu-invitation-seal { padding: 0 32px 46px; }
+  .lu-category-grid { grid-template-columns: 1fr; }
+  .lu-category-grid article { min-height: 280px; border-right: 0; border-bottom: 1px solid var(--lu-line-dark); }
+  .lu-category-grid article:nth-child(3) { border-bottom: 1px solid var(--lu-line-dark); }
+  .lu-category-grid article:last-child { border-bottom: 0; }
+  .lu-distinction-grid { display: block; }
+  .lu-distinction-grid article { min-height: 0; padding: 44px 24px; border-right: 0; border-bottom: 1px solid var(--lu-line-light); }
+  .lu-distinction-grid article:last-child { border-bottom: 0; }
+  .lu-distinction-grid h3, .lu-distinction-grid strong { min-height: 0; }
+  .lu-distinction-grid .lu-drop-group svg { width: 68px; }
+  .lu-method-list article { grid-template-columns: 44px 1fr; gap: 12px; }
+  .lu-method-list article p { grid-column: 2; }
+  .lu-method-note { padding-left: 0; }
+  .lu-annual-section { grid-template-columns: 1fr; justify-items: start; padding: 96px 24px; }
+  .lu-annual-mark .lu-drop-group, .lu-annual-mark svg { width: 72px; height: 96px; }
+  .lu-release-section { padding: 64px 14px; }
+  .lu-release-frame { padding: 54px 20px; }
+  .lu-release-frame dl { grid-template-columns: 1fr; }
+  .lu-release-frame dl > div { border-right: 0; border-bottom: 1px solid var(--lu-line-light); }
+  .lu-release-frame dl > div:last-child { border-bottom: 0; }
+  .lu-volume { grid-template-columns: 82px 1fr; min-height: 138px; padding: 22px 0; }
+  .lu-volume small { grid-column: 2; }
+  .lu-footer { padding: 64px 24px 28px; }
+  .lu-footer-brand { display: grid; gap: 8px; }
+  .lu-footer-legal { grid-template-columns: 1fr; gap: 12px; }
+  .lu-footer-bottom { gap: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.lu-guide-open { scroll-behavior: auto; }
+  .lu-guide *, .lu-guide *::before, .lu-guide *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; }
+  .lu-guide [data-reveal] { opacity: 1; transform: none; }
+}

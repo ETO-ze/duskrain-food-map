@@ -180,15 +180,31 @@ export async function updateAdminAuthor(id, payload) {
   }));
 }
 
+export async function deleteAdminAuthor(id, authorName) {
+  return readJson(await fetch(`${API_BASE}/admin/authors/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ author_name: authorName }),
+  }));
+}
+
 export async function resetAdminAuthorPassword(id) {
   return readJson(await fetch(`${API_BASE}/admin/authors/${id}/reset-password`, { method: "POST" }));
 }
 
-export async function developerLogin(username, password) {
+export async function resendAdminAuthorInvitation(id) {
+  return readJson(await fetch(`${API_BASE}/admin/authors/${id}/send-invitation`, { method: "POST" }));
+}
+
+export async function getDeveloperAuthConfig() {
+  return readJson(await fetch(`${API_BASE}/developer/auth/config`));
+}
+
+export async function developerLogin(login, password) {
   return readJson(await fetch(`${API_BASE}/developer/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ login, password }),
   }));
 }
 
@@ -206,6 +222,60 @@ export async function changeDeveloperPassword(currentPassword, newPassword) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   }));
+}
+
+export async function inspectDeveloperActivation(token) {
+  return readJson(await fetch(`${API_BASE}/developer/activation/inspect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  }));
+}
+
+export async function completeDeveloperActivation(token, username, password) {
+  return readJson(await fetch(`${API_BASE}/developer/activation/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, username, password }),
+  }));
+}
+
+export async function requestDeveloperPasswordReset(email) {
+  return readJson(await fetch(`${API_BASE}/developer/password/forgot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  }));
+}
+
+export async function completeDeveloperPasswordReset(token, password) {
+  return readJson(await fetch(`${API_BASE}/developer/password/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  }));
+}
+
+export async function updateDeveloperProfile(username) {
+  return readJson(await fetch(`${API_BASE}/developer/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username }),
+  }));
+}
+
+export async function uploadDeveloperAvatar(file) {
+  const body = new FormData();
+  body.append("avatar", file);
+  return readJson(await fetch(`${API_BASE}/developer/avatar`, { method: "POST", body }));
+}
+
+export async function deleteDeveloperAvatar() {
+  return readJson(await fetch(`${API_BASE}/developer/avatar`, { method: "DELETE" }));
+}
+
+export async function unbindDeveloperOAuth(provider) {
+  return readJson(await fetch(`${API_BASE}/developer/oauth/${provider}`, { method: "DELETE" }));
 }
 
 export async function getDeveloperPlaces() {

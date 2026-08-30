@@ -157,14 +157,14 @@ function changeProvider() {
         </select>
       </div>
       <div class="field search-query-field">
-        <label for="searchText">店名 / 地点</label>
+        <label for="searchText">店名（含分店名）</label>
         <input
           id="searchText"
           v-model="q"
           name="query"
           enterkeyhint="search"
           autocomplete="off"
-          :placeholder="provider === 'google' ? '例如：Le Bernardin' : '例如：上海 福和慧'"
+          :placeholder="provider === 'google' ? '例如：Le Bernardin' : '例如：喜家德（凯德广场店）'"
         >
       </div>
       <div v-if="provider === 'google'" class="field">

@@ -1,0 +1,116 @@
+{
+  "edition": 2026,
+  "status": "teaser",
+  "period": { "start": "2026-01-01", "end": "2026-12-31" },
+  "publication": { "year": 2027, "month": 1, "date": null },
+  "navigation": {
+    "edition": "2026 版",
+    "distinctions": "雨滴评级",
+    "methodology": "评鉴方法",
+    "archive": "历年版本",
+    "back": "返回美食地图"
+  },
+  "hero": {
+    "eyebrow": "DuskRain Food Map présente",
+    "kicker": "Sélection annuelle de tables visitées",
+    "titleZh": "吕其林指南",
+    "title": "LÜ · LYU",
+    "signature": "Le Guide de Lü",
+    "publication": "Publication en janvier 2027",
+    "teaserTitle": "2026 年度餐饮选录",
+    "releasedTitle": "2026 吕其林指南，现已发布。",
+    "teaserBody": "收录餐厅、小吃、咖啡馆与酒吧。正式入选均以本人实际到店并完成消费为前提。",
+    "releasedBody": "DuskRain Food Map 2026 年度正式入选与雨滴评级现已公开。",
+    "primaryTeaser": "查看选录原则",
+    "primaryReleased": "开启 2026 指南",
+    "secondary": "查看评鉴标准",
+    "periodLabel": "Période observée · 01.01 — 31.12.2026"
+  },
+  "invitation": {
+    "eyebrow": "À propos",
+    "title": "关于本指南",
+    "paragraphs": [
+      "吕其林指南是 DuskRain Food Map 的年度餐饮选录。每一版以当年实际发生的到店记录为基础，在评鉴周期结束后统一复核。",
+      "它不试图为所有餐厅排出绝对次序，也不以知名度、网络热度或商业规模决定入选。判断回到一家餐厅在自身定位下，是否把该做的事情做到位。",
+      "一道菜是否准确，一顿饭是否完整，以及离开以后，是否仍值得再次前往。"
+    ],
+    "closing": "评鉴结果决定名单，而不是名单决定名额。"
+  },
+  "manifesto": {
+    "eyebrow": "Principes de sélection",
+    "title": "名单没有预设名额",
+    "body": "只有本人实际到店并完成消费的场所，才有资格进入年度正式选录。不同城市、类型与价格区间之间不设配额；知名度、网络热度和商业规模也不构成入选理由。",
+    "principles": ["实际到店", "完成消费", "周期内复核", "不设固定名额"]
+  },
+  "categories": {
+    "eyebrow": "Catégories",
+    "title": "收录类别",
+    "intro": "形式不同，基本原则相同；判断始终回到实际出品。",
+    "items": [
+      { "number": "01", "name": "餐厅", "labelFr": "Restaurants", "description": "包括地方餐馆、独立餐厅、传统料理与完整菜单型餐厅。尺度随定位调整，出品始终是判断中心。" },
+      { "number": "02", "name": "小吃", "labelFr": "Cuisine de rue", "description": "包括街头小吃、早餐店、面馆、熟食与单一产品专门店。形式简单，不意味着标准降低。" },
+      { "number": "03", "name": "咖啡馆", "labelFr": "Cafés", "description": "关注咖啡、茶、甜点与烘焙产品的实际表现；空间与服务不能取代杯中和盘中的质量。" },
+      { "number": "04", "name": "酒吧", "labelFr": "Bars", "description": "关注酒单结构、调制、原料处理、温度与出杯稳定性，空间与服务纳入判断但不取代酒本身。" }
+    ]
+  },
+  "distinctions": {
+    "eyebrow": "Distinctions",
+    "title": "值得为它走多远",
+    "intro": "雨滴衡量的不是价格或排场，而是一次到店之后，我愿意为它多走多远。",
+    "items": [
+      { "id": "one-drop", "count": 1, "name": "一滴雨", "labelFr": "Une goutte", "definition": "水准明确，值得在城中安排一餐。", "detail": "已经来到这座城市时，值得专门为它留出时间。" },
+      { "id": "two-drops", "count": 2, "name": "两滴雨", "labelFr": "Deux gouttes", "definition": "表现完整而有辨识度。", "detail": "值得改变原本的路线，专门前往。" },
+      { "id": "three-drops", "count": 3, "name": "三滴雨", "labelFr": "Trois gouttes", "definition": "少见且难以替代。", "detail": "它本身足以成为安排一次行程的理由。" },
+      { "id": "rain-pick", "count": 0, "name": "雨露推荐", "labelFr": "Éclat de pluie", "definition": "价格、出品与完整体验之间达到难得的平衡。", "detail": "不以形式、价格或复杂程度为前提，只看它在自身类型中是否足够准确。" },
+      { "id": "selected", "count": 0, "name": "吕选", "labelFr": "Sélection de Lü", "definition": "经实地评鉴，进入本年度正式选录。", "detail": "入选不等于获得雨滴，但意味着它值得被写进这一年的记录。" }
+    ]
+  },
+  "methodology": {
+    "eyebrow": "Critères d’évaluation",
+    "title": "评鉴标准",
+    "intro": "不同类型不会套用完全相同的尺度，但都接受同一组基本问题：出品是否准确，整体是否完整，离开之后是否仍值得回来。",
+    "items": [
+      { "number": "01", "name": "出品与风味", "description": "味觉结构、调味、温度与质地是否准确。复杂不是目标，表达成立才是。" },
+      { "number": "02", "name": "食材与技术", "description": "食材到达餐桌时的状态是否合宜；与之相关的火候、处理和技术是否服务于结果。" },
+      { "number": "03", "name": "菜单结构", "description": "对于完整菜单，考察菜品之间的节奏、重复度与衔接；一道好菜不能替整套菜单作答。" },
+      { "number": "04", "name": "稳定性", "description": "有多次记录时，比较不同到访、不同菜品以及不同时间的表现。" },
+      { "number": "05", "name": "服务与价值", "description": "服务是否准确自然、节奏是否得当，以及最终所得是否与实际定价相称。" },
+      { "number": "06", "name": "辨识度与复访", "description": "它是否有自己的表达；时间过去以后，是否仍让我愿意再次前往。" }
+    ],
+    "note": "高价食材、复杂技法和隆重服务本身都不会自动提高评价。"
+  },
+  "scoreSelection": {
+    "eyebrow": "Notes et sélection",
+    "title": "评分是记录，入选是判断",
+    "body": "DuskRain Food Map 的评分用于保存一次或多次具体消费的表现；年度指南则在评鉴周期结束后，对完整记录重新复核。两者有关，但不是同一件事。",
+    "statement": "高分不必然意味着入选。",
+    "note": "同样，一道菜表现突出，也不会让一家餐厅自动进入年度名单。选录最终看的是完整度、辨识度与复访价值。"
+  },
+  "annual": {
+    "eyebrow": "Principes éditoriaux",
+    "title": "只对这一年负责",
+    "independence": "指南保持独立选录，不接受以商业合作、广告投放或赠送体验换取年度入选；任何可能影响判断的体验背景，将在必要时说明。",
+    "body": "菜单会变，团队会变，经营状态会变，人的理解也会变。雨滴与入选不会自动延续到下一年。指南记录的只是：在这一年，它表现得如何。"
+  },
+  "release": {
+    "teaserEyebrow": "La sélection 2026",
+    "teaserTitle": "2026 年度评鉴仍在进行。",
+    "teaserBody": "截至 2026 年 12 月 31 日完成的有效到店记录，均可能进入最终复核范围。名单不预设数量，将在全部年度记录复核完成后确定。",
+    "releasedEyebrow": "Édition ouverte",
+    "releasedTitle": "2026 年度指南已公开。",
+    "releasedBody": "现在可以查看正式入选店铺与对应的年度评级。",
+    "back": "返回美食地图"
+  },
+  "archive": {
+    "eyebrow": "Archives",
+    "title": "历年版本",
+    "description": "新的一年开始以后，旧版本仍然保留它当时的记录与判断。",
+    "label": "Premier volume · à paraître"
+  },
+  "footer": {
+    "tagline": "本版只对 2026 年的到店记录负责。",
+    "disclaimer": "“吕其林指南 / Le Guide de Lü”是 DuskRain Food Map 的个人年度美食记录项目，与米其林指南不存在隶属、合作或授权关系。",
+    "experience": "Toutes les opinions reposent sur des expériences personnelles vécues pendant la période indiquée."
+  },
+  "entries": []
+}

@@ -1,28 +1,56 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { placeCategories } from "../utils/categories";
 import { formatAddress } from "../utils/map";
 
 const props = defineProps({
   places: { type: Array, required: true },
   enableCategoryFilter: { type: Boolean, default: false },
+  enableSort: { type: Boolean, default: false },
 });
 
 defineEmits(["edit", "delete", "new"]);
 
 const categoryFilter = ref("");
+const sortMode = ref("created_desc");
+const sortMenu = ref(null);
 const uncategorizedValue = "__uncategorized__";
 const categoryOptions = computed(() => [...new Set(
   props.places.flatMap(placeCategories),
 )].sort((a, b) => a.localeCompare(b, "zh-CN")));
 const hasUncategorized = computed(() => props.places.some((place) => !placeCategories(place).length));
 const visiblePlaces = computed(() => {
-  if (!props.enableCategoryFilter || !categoryFilter.value) return props.places;
-  if (categoryFilter.value === uncategorizedValue) {
-    return props.places.filter((place) => !placeCategories(place).length);
+  let items = props.places;
+  if (props.enableCategoryFilter && categoryFilter.value === uncategorizedValue) {
+    items = props.places.filter((place) => !placeCategories(place).length);
+  } else if (props.enableCategoryFilter && categoryFilter.value) {
+    items = props.places.filter((place) => placeCategories(place).includes(categoryFilter.value));
   }
-  return props.places.filter((place) => placeCategories(place).includes(categoryFilter.value));
+  if (!props.enableSort) return items;
+  return [...items].sort((left, right) => {
+    if (sortMode.value === "rating_desc") {
+      const leftRating = Number(left.rating);
+      const rightRating = Number(right.rating);
+      const leftHasRating = left.rating !== null && left.rating !== "" && Number.isFinite(leftRating);
+      const rightHasRating = right.rating !== null && right.rating !== "" && Number.isFinite(rightRating);
+      if (leftHasRating !== rightHasRating) return leftHasRating ? -1 : 1;
+      if (leftHasRating && leftRating !== rightRating) return rightRating - leftRating;
+    }
+    return String(right.created_at || "").localeCompare(String(left.created_at || ""));
+  });
 });
+
+function selectSort(mode) {
+  sortMode.value = mode;
+  if (sortMenu.value) sortMenu.value.open = false;
+}
+
+function closeSortMenu(event) {
+  if (sortMenu.value?.open && !sortMenu.value.contains(event.target)) sortMenu.value.open = false;
+}
+
+onMounted(() => document.addEventListener("click", closeSortMenu));
+onUnmounted(() => document.removeEventListener("click", closeSortMenu));
 
 watch(categoryOptions, (options) => {
   if (
@@ -52,7 +80,25 @@ watch(categoryOptions, (options) => {
           <option v-if="hasUncategorized" :value="uncategorizedValue">未分类</option>
         </select>
       </div>
-      <span class="pill">当前 {{ visiblePlaces.length }} 家</span>
+      <div class="admin-list-filter-actions">
+        <span class="pill">当前 {{ visiblePlaces.length }} 家</span>
+        <details v-if="enableSort" ref="sortMenu" class="place-sort-menu" @keydown.esc="sortMenu.open = false">
+          <summary class="place-sort-trigger" title="调整店家排序" aria-label="调整店家排序">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.5 5h11l-4.2 5.1v6.2l-2.7 1.8v-8z" />
+              <path d="M15.5 10.5h5M15.5 14.5h4M15.5 18.5h3" />
+            </svg>
+          </summary>
+          <div class="place-sort-popover" role="menu" aria-label="排序方式">
+            <button type="button" role="menuitemradio" :aria-checked="sortMode === 'created_desc'" @click="selectSort('created_desc')">
+              <span>最近添加</span><span aria-hidden="true">{{ sortMode === "created_desc" ? "✓" : "" }}</span>
+            </button>
+            <button type="button" role="menuitemradio" :aria-checked="sortMode === 'rating_desc'" @click="selectSort('rating_desc')">
+              <span>评分最高</span><span aria-hidden="true">{{ sortMode === "rating_desc" ? "✓" : "" }}</span>
+            </button>
+          </div>
+        </details>
+      </div>
     </div>
     <section class="list admin-list">
       <article v-if="!places.length" class="place-item">

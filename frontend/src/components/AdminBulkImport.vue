@@ -208,8 +208,8 @@ function clearInput() {
       class="bulk-input"
       :disabled="isRunning"
       :placeholder="fixedAuthor
-        ? '1 喜家德（凯德广场店） 哈尔滨 8.2 推荐 连锁家常\n2 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 9.1 必去 烧烤'
-        : '1 喜家德（凯德广场店） 哈尔滨 8.2 推荐 吕俊泽 连锁家常\n2 二发烧烤 黑龙江省哈尔滨市香坊区亚麻街副39-1号 9.1 必去 吕俊泽 烧烤'"
+        ? '1 喜家德（凯德广场店） 哈尔滨市南岗区学府路1号 8.2 推荐 东北菜、饺子'
+        : '1 喜家德（凯德广场店） 哈尔滨市南岗区学府路1号 8.2 推荐 吕俊泽 东北菜、饺子'"
     ></textarea>
     <div class="button-row">
       <button class="btn" type="button" :disabled="!readyCount || isRunning" @click="importAll">

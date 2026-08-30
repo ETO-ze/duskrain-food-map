@@ -32,12 +32,14 @@ $publishPaths = @(
     "requirements.txt",
     "docs",
     "frontend/index.html",
+    "frontend/public",
     "frontend/package.json",
     "frontend/package-lock.json",
     "frontend/vite.config.js",
     "frontend/scripts",
     "frontend/src",
     "scripts",
+    "tests",
     "Start Food Map.cmd",
     "Publish to GitHub.cmd"
 )

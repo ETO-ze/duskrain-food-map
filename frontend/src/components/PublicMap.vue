@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from "vue";
-import { List, Map as MapIcon, MapPin, Moon, RotateCcw, ScanSearch, Shuffle, Sun } from "@lucide/vue";
+import { ChevronLeft, ChevronRight, List, Map as MapIcon, MapPin, Moon, RotateCcw, ScanSearch, Shuffle, Sun, X } from "@lucide/vue";
 import { getCategories, getPublicPlaces } from "../utils/api";
 import { placeCategories } from "../utils/categories";
 import { applyMapLabels, applyMovingMapFeatures, cityClusterHtml, clusterCountHtml, formatAddress, hydrateDeferredImages, imageList, infoHtml, loadAmap, loadAmapPlugin, mapOptions, storeMarkerHtml } from "../utils/map";
@@ -20,6 +20,9 @@ const viewportBounds = ref(null);
 const actionMessage = ref("");
 const mapTheme = ref("day");
 const sidebarCollapsed = ref(false);
+const guidePromoDismissed = ref(false);
+const adSlotDismissed = ref(false);
+const adSlotIndex = ref(0);
 const sidePanelElement = ref(null);
 const listElement = ref(null);
 const mobileHeaderCollapsing = ref(false);
@@ -47,6 +50,9 @@ let expandedMobileStatusHeight = 0;
 const pendingTimers = new Set();
 const singleMarkerHandlers = new WeakMap();
 const MOBILE_COLLAPSE_END = 215;
+const AD_SLOT_SESSION_KEY = "duskrainPublicMapAdDismissed";
+const ADS_ENABLED = false;
+const adSlots = ["广告位 1", "广告位 2", "广告位 3"];
 
 const domesticPlaces = computed(() => places.value.filter((place) => (place.map_provider || "amap") === "amap"));
 
@@ -104,6 +110,23 @@ function distanceKm(lng1, lat1, lng2, lat2) {
 
 function isMobile() {
   return window.matchMedia("(max-width: 860px)").matches;
+}
+
+function dismissAdSlot() {
+  adSlotDismissed.value = true;
+  try {
+    window.sessionStorage.setItem(AD_SLOT_SESSION_KEY, "true");
+  } catch {
+    // The close action still works when browser storage is unavailable.
+  }
+}
+
+function dismissGuidePromo() {
+  guidePromoDismissed.value = true;
+}
+
+function switchAdSlot(direction) {
+  adSlotIndex.value = (adSlotIndex.value + direction + adSlots.length) % adSlots.length;
 }
 
 function stage(value, start, end) {
@@ -644,6 +667,11 @@ function handleZoomEnd() {
 
 onMounted(async () => {
   try {
+    adSlotDismissed.value = window.sessionStorage.getItem(AD_SLOT_SESSION_KEY) === "true";
+  } catch {
+    adSlotDismissed.value = false;
+  }
+  try {
     document.body.classList.add("map-day");
     window.addEventListener("resize", handleViewportResize, { passive: true });
     AMapRef.value = await loadAmap();
@@ -763,11 +791,72 @@ onUnmounted(() => {
       <header>
         <div class="mobile-expanded-header">
           <p class="eyebrow">DUSKRAIN TASTE MAP</p>
-          <h1>吕其林美食指南</h1>
-          <p class="subtle">把亲自吃过、想推荐、需要避雷的店铺标在地图上，按分类和推荐等级快速筛选。</p>
+          <h1>DuskRain美食地图</h1>
+          <p class="subtle">地图收录本人及朋友实际到店体验的店铺，支持按分类和推荐等级筛选，并快速查看推荐与避雷信息。</p>
+          <div v-if="!ADS_ENABLED && !guidePromoDismissed" class="annual-guide-wrap">
+            <a class="annual-guide-entry" href="/food-map/guide/2026/">
+              <span>LÜ GUIDE · ÉDITION 2026</span>
+              <strong>2026 吕其林指南，即将发布</strong>
+              <small>Publication en janvier 2027 →</small>
+            </a>
+            <button
+              class="annual-guide-dismiss"
+              type="button"
+              aria-label="关闭指南预告"
+              title="关闭指南预告"
+              @click="dismissGuidePromo"
+            >
+              <X :size="16" :stroke-width="1.8" aria-hidden="true" />
+            </button>
+          </div>
+          <aside
+            v-if="ADS_ENABLED && !adSlotDismissed"
+            class="google-ad-reserve"
+            aria-label="Google Ads 广告预留位"
+          >
+            <button
+              class="google-ad-close"
+              type="button"
+              aria-label="关闭广告位"
+              title="关闭广告位"
+              @click="dismissAdSlot"
+            >
+              <X :size="16" :stroke-width="1.8" aria-hidden="true" />
+            </button>
+            <button
+              class="google-ad-arrow google-ad-arrow-prev"
+              type="button"
+              aria-label="上一条广告"
+              title="上一条广告"
+              @click="switchAdSlot(-1)"
+            >
+              <ChevronLeft :size="18" :stroke-width="1.8" aria-hidden="true" />
+            </button>
+            <div class="google-ad-content" aria-live="polite">
+              <span>ADVERTISEMENT</span>
+              <strong>Google Ads</strong>
+              <small>{{ adSlots[adSlotIndex] }}</small>
+            </div>
+            <button
+              class="google-ad-arrow google-ad-arrow-next"
+              type="button"
+              aria-label="下一条广告"
+              title="下一条广告"
+              @click="switchAdSlot(1)"
+            >
+              <ChevronRight :size="18" :stroke-width="1.8" aria-hidden="true" />
+            </button>
+            <div class="google-ad-dots" aria-hidden="true">
+              <span
+                v-for="(_, index) in adSlots"
+                :key="index"
+                :class="{ 'is-active': index === adSlotIndex }"
+              ></span>
+            </div>
+          </aside>
         </div>
         <div class="mobile-compact-summary">
-          <strong>吕其林美食指南</strong>
+          <strong>DuskRain美食地图</strong>
           <span>当前 {{ visiblePlaces.length }} 家</span>
           <button
             v-if="hasActiveFilters"

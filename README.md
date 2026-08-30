@@ -123,10 +123,12 @@ flowchart TB
 | 身份 | 登录方式 | 数据权限 |
 | --- | --- | --- |
 | 公开访客 | 无需登录 | 查看公开店家、筛选、地图联动和评价 |
-| 普通作者 | 独立作者账号 | 新建店家，只能修改或删除 `rating_author` 属于自己的记录 |
+| 普通作者 | 邮箱/账号密码，或已绑定的 Google、GitHub | 新建店家，只能修改或删除 `owner_account_id` 属于自己的记录 |
 | 超级管理员 | Authelia + Google TOTP | 管理全部店家、作者账号、数据归属和公开状态 |
 
-作者密码使用 PBKDF2 哈希，服务端会话只保存令牌哈希。首次登录可以强制修改临时密码，停用或重置账号会注销已有会话。
+作者账户不开放公开注册。超级管理员填写作者名和邮箱后，系统发送一次性激活链接；作者自行设置账号名和至少 8 位的密码。新密码使用 Argon2id，旧 PBKDF2 密码会在成功登录后升级。Google/GitHub 只能由已激活作者主动绑定，不会自动创建账号，也不会按邮箱自动关联。
+
+作者没有本地头像时，首次绑定或使用 Google/GitHub 登录会安全导入第三方头像并转存为本站 WebP；手动上传的头像不会被覆盖。手机号身份使用通用身份表预留，通过 `FOOD_MAP_PHONE_LOGIN_ENABLED=false` 保持关闭，接入短信验证服务前不显示入口。
 
 ## 数据原则
 
@@ -134,6 +136,7 @@ flowchart TB
 - `coordinate_system`: `gcj02` 或 `wgs84`
 - `provider_poi_id`: 高德 POI ID 或 Google Place ID
 - `provider_category`: 地图提供商返回的店铺类型
+- `owner_account_id`: 稳定的作者账户归属；作者改名不会改变店家所有权
 - `my_category`: 首个用户菜系，保留用于兼容旧客户端
 - `my_categories`: 用户菜系列表，JSON 数组，可多选
 - Google 地图展示国内点时只转换本站保存的坐标，不抓取或缓存高德底图。
@@ -147,7 +150,18 @@ flowchart TB
 Copy-Item .env.example .env
 ```
 
-2. 在 `.env` 中配置自己的高德和 Google Maps 凭据。
+2. 在 `.env` 中配置地图凭据；如需作者邀请与第三方登录，还需配置 SMTP、Google OAuth 和 GitHub OAuth。
+
+OAuth 生产回调地址：
+
+```text
+https://duskrain.cn/food-map/api/developer/oauth/google/callback
+https://duskrain.cn/food-map/api/developer/oauth/github/callback
+```
+
+先在 Google 与 GitHub 的 OAuth 应用控制台登记上述回调地址，再将对应的
+`FOOD_MAP_GOOGLE_OAUTH_ENABLED` / `FOOD_MAP_GITHUB_OAUTH_ENABLED` 设为 `true`。
+未登记回调时保持为 `false`，不会向作者展示不可用的登录入口。
 
 3. 启动容器：
 
@@ -158,9 +172,10 @@ docker compose up -d --build
 4. 本地访问：
 
 ```text
-http://127.0.0.1:8091/
-http://127.0.0.1:8091/global/
-http://127.0.0.1:8091/admin/
+http://127.0.0.1:8091/food-map/
+http://127.0.0.1:8091/food-map/global/
+http://127.0.0.1:8091/food-map/admin/
+http://127.0.0.1:8091/food-map/developer/
 ```
 
 ## 前端开发
@@ -181,6 +196,12 @@ npm run build
 
 ```powershell
 npm run test:bulk-import
+```
+
+验证作者邀请、激活、头像、密码重置和稳定归属：
+
+```powershell
+python -m unittest discover -s tests -v
 ```
 
 ## 安全发布到 GitHub
@@ -228,5 +249,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish-github-safe.ps1 -Audi
 - 服务端 Web Service Key 不应出现在前端或 GitHub。
 - Google Maps 和 Places API 应设置 API 限制、预算提醒和调用配额。
 - 管理端必须继续由反向代理认证保护。
-- 作者密码使用 PBKDF2 哈希保存，会话令牌仅保存 SHA-256 哈希；停用或重置账号会注销已有会话。
+- 新作者密码使用 Argon2id，旧 PBKDF2 密码兼容迁移；会话和一次性链接只保存令牌哈希。
+- OAuth 使用随机 `state` 与 PKCE。第三方访问令牌只用于读取稳定身份，完成回调后不保存。
+- 邀请链接有效期 24 小时，密码重置链接有效期 1 小时；重新发送会使旧链接失效。
+- 头像只接受 JPEG、PNG、WebP，最大 2 MB，服务端重新编码并去除原文件元数据。
 - 本项目是个人美食记录工具，不提供第三方平台评分复制或商业数据采集。
