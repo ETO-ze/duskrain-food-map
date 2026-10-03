@@ -2,6 +2,9 @@ import { getConfig } from "./api";
 import { markerClass } from "./map";
 
 let googleMapsPromise;
+let authFailed = false;
+let authHookInstalled = false;
+export const GOOGLE_AUTH_MESSAGE = "Google 地图验证未通过，请检查密钥、API 权限及结算设置，完成后刷新页面。";
 const GOOGLE_PLACE_FIELDS = [
   "id",
   "displayName",
@@ -15,6 +18,16 @@ const GOOGLE_PLACE_FIELDS = [
 ];
 
 export async function loadGoogleMaps() {
+  if (!authHookInstalled) {
+    const previous = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      authFailed = true;
+      window.dispatchEvent(new Event("duskrain-google-auth-error"));
+      if (typeof previous === "function") previous();
+    };
+    authHookInstalled = true;
+  }
+  if (authFailed) throw new Error(GOOGLE_AUTH_MESSAGE);
   if (window.google?.maps?.importLibrary) return window.google.maps;
   if (googleMapsPromise) return googleMapsPromise;
 
@@ -25,18 +38,23 @@ export async function loadGoogleMaps() {
     }
     const callbackName = `__duskrainGoogleMapsReady${Date.now()}`;
     const script = document.createElement("script");
+    const timer = setTimeout(() => failed("Google Maps 连接超时"), 20000);
+    function failed(message) {
+      clearTimeout(timer);
+      window[callbackName] = () => {};
+      script.remove();
+      reject(new Error(message));
+    }
     window[callbackName] = () => {
+      clearTimeout(timer);
       delete window[callbackName];
       resolve(window.google.maps);
     };
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(config.googleMapsApiKey)}&v=weekly&loading=async&libraries=maps,marker,places&language=zh-CN&callback=${callbackName}`;
     script.async = true;
-    script.onerror = () => {
-      delete window[callbackName];
-      reject(new Error("Google Maps 脚本加载失败"));
-    };
+    script.onerror = () => failed("Google Maps 脚本加载失败");
     document.head.appendChild(script);
-  }));
+  })).catch((error) => { googleMapsPromise = null; throw error; });
 
   return googleMapsPromise;
 }

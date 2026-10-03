@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite --host 0.0.0.0",
-    "test:bulk-import": "node scripts/test-bulk-import.mjs"
+    "test:bulk-import": "node scripts/test-bulk-import.mjs",
+    "test:explore": "node --test scripts/test-explore.mjs"
   },
   "dependencies": {
     "@fontsource/italianno": "^5.3.0",

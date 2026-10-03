@@ -1,6 +1,13 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef } from "vue";
-import { ChevronLeft, ChevronRight, List, Map as MapIcon, MapPin, Moon, RotateCcw, ScanSearch, Shuffle, Sun, X } from "@lucide/vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { ChevronLeft, ChevronRight, Search, List, Map as MapIcon, MapPin, Moon, RotateCcw, ScanSearch, Shuffle, Sun, X } from "@lucide/vue";
+import MapLoading from "./MapLoading.vue";
+import BrowsePlaceCard from "./BrowsePlaceCard.vue";
+import { useBrowseMemory } from "../utils/browse-memory";
+import { useBrowseResults } from "../utils/browse-panel";
+import { useMapLoading } from "../utils/map-loading";
+import { matchesSearch, containsPosition, nearbyPlaces, sameBounds } from "../utils/explore";
+import { gcj02ToWgs84 } from "../utils/google-map";
 import { getCategories, getPublicPlaces } from "../utils/api";
 import { placeCategories } from "../utils/categories";
 import { applyMapLabels, applyMovingMapFeatures, cityClusterHtml, clusterCountHtml, formatAddress, hydrateDeferredImages, imageList, infoHtml, loadAmap, loadAmapPlugin, mapOptions, storeMarkerHtml } from "../utils/map";
@@ -25,9 +32,22 @@ const adSlotDismissed = ref(false);
 const adSlotIndex = ref(0);
 const sidePanelElement = ref(null);
 const listElement = ref(null);
-const mobileHeaderCollapsing = ref(false);
-const mobileHeaderCompact = ref(false);
-const mobileFilterHorizontal = ref(false);
+const query = ref("");
+const loadingPlaces = ref(true);
+const locating = ref(false);
+const nearbyRadius = ref(30);
+const selectedId = ref(null);
+const viewportDirty = ref(false);
+const { phase: mapPhase, message: mapMessage, screenPhase: loadingPhase, screenVisible: loadingScreen, dismiss: dismissLoading, reveal: revealLoading, begin: beginLoading, current: currentLoading, rendering: mapRendering, ready: mapReady, fail: mapFailed } = useMapLoading(computed(() => loadingPlaces.value && !places.value.length));
+let disposed = false;
+let locationRequest = 0;
+let initialFitDone = false;
+let pendingPlace = null;
+let searchTimer;
+let markerSignature = "";
+const cityMarkerCache = new Map();
+const { restoreScroll } = useBrowseMemory("duskrain-browse-amap", { filters, query, mapTheme }, sidePanelElement);
+useBrowseResults(sidePanelElement, listElement, [filters, query, nearbyMode, viewportBounds]);
 const initialPlaceFocused = ref(false);
 const error = ref("");
 const CITY_OVERVIEW_MAX_ZOOM = 7.5;
@@ -40,16 +60,8 @@ let isMapMoving = false;
 let activeMarkerMode = "";
 let storeMarkerData = [];
 let scaleControl = null;
-let mobileCollapseFrame = 0;
-let pendingMobileScrollTop = 0;
-let expandedMobileHeaderHeight = 0;
-let expandedMobileProviderHeight = 0;
-let expandedMobileToolbarHeight = 0;
-let expandedMobileActionsHeight = 0;
-let expandedMobileStatusHeight = 0;
 const pendingTimers = new Set();
 const singleMarkerHandlers = new WeakMap();
-const MOBILE_COLLAPSE_END = 215;
 const AD_SLOT_SESSION_KEY = "duskrainPublicMapAdDismissed";
 const ADS_ENABLED = false;
 const adSlots = ["广告位 1", "广告位 2", "广告位 3"];
@@ -65,48 +77,26 @@ const authorOptions = computed(() => {
     .sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
 });
 
-const hasActiveFilters = computed(() => Object.values(filters.value).some(Boolean) || Boolean(viewportBounds.value));
+const hasActiveFilters = computed(() => Object.values(filters.value).some(Boolean) || Boolean(viewportBounds.value) || nearbyMode.value || Boolean(query.value.trim()));
 
 const visiblePlaces = computed(() => {
   const filtered = domesticPlaces.value.filter((place) => {
+    if (filters.value.category && !placeCategories(place).includes(filters.value.category)) return false;
+    if (filters.value.recommend && place.recommend_level !== filters.value.recommend) return false;
     if (filters.value.city && place.city !== filters.value.city) return false;
     if (filters.value.author && place.rating_author !== filters.value.author) return false;
-    return true;
+    return matchesSearch(place, query.value) && containsPosition(viewportBounds.value, { lng: Number(place.lng), lat: Number(place.lat) });
   });
-  const inViewport = viewportBounds.value
-    ? filtered.filter((place) => (
-      Number(place.lng) >= viewportBounds.value.minLng
-      && Number(place.lng) <= viewportBounds.value.maxLng
-      && Number(place.lat) >= viewportBounds.value.minLat
-      && Number(place.lat) <= viewportBounds.value.maxLat
-    ))
-    : filtered;
   if (nearbyMode.value && userLocation.value) {
-    const withDistance = inViewport
-      .map((place) => ({
-        ...place,
-        distanceKm: distanceKm(
-          userLocation.value.lng,
-          userLocation.value.lat,
-          Number(place.lng),
-          Number(place.lat),
-        ),
-      }))
-      .sort((a, b) => a.distanceKm - b.distanceKm);
-    const inRange = withDistance.filter((place) => place.distanceKm <= 30);
-    return inRange.length ? inRange : withDistance.slice(0, 10);
+    return nearbyPlaces(filtered, userLocation.value, nearbyRadius.value, (place) => gcj02ToWgs84(place.lng, place.lat));
   }
-  return [...inViewport].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
+  return filtered.sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
 });
 
-function distanceKm(lng1, lat1, lng2, lat2) {
-  const radians = (value) => value * Math.PI / 180;
-  const dLat = radians(lat2 - lat1);
-  const dLng = radians(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2
-    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+watch(query, () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(refreshVisiblePlaces, 150);
+});
 
 function isMobile() {
   return window.matchMedia("(max-width: 860px)").matches;
@@ -127,113 +117,6 @@ function dismissGuidePromo() {
 
 function switchAdSlot(direction) {
   adSlotIndex.value = (adSlotIndex.value + direction + adSlots.length) % adSlots.length;
-}
-
-function stage(value, start, end) {
-  return Math.max(0, Math.min(1, (value - start) / (end - start)));
-}
-
-function setMobileVariable(panel, name, value) {
-  panel.style.setProperty(name, value);
-}
-
-function clearMobileCollapse() {
-  const panel = sidePanelElement.value;
-  mobileHeaderCollapsing.value = false;
-  mobileHeaderCompact.value = false;
-  mobileFilterHorizontal.value = false;
-  expandedMobileHeaderHeight = 0;
-  expandedMobileProviderHeight = 0;
-  expandedMobileToolbarHeight = 0;
-  expandedMobileActionsHeight = 0;
-  expandedMobileStatusHeight = 0;
-  if (!panel) return;
-  [
-    "--mobile-header-height",
-    "--mobile-expanded-opacity",
-    "--mobile-summary-opacity",
-    "--mobile-provider-height",
-    "--mobile-provider-opacity",
-    "--mobile-toolbar-height",
-    "--mobile-toolbar-opacity",
-    "--mobile-actions-height",
-    "--mobile-actions-opacity",
-    "--mobile-status-height",
-    "--mobile-status-opacity",
-    "--mobile-header-gap",
-    "--mobile-provider-gap",
-    "--mobile-toolbar-gap",
-    "--mobile-actions-gap",
-    "--mobile-status-gap",
-  ].forEach((name) => panel.style.removeProperty(name));
-}
-
-function applyMobileCollapse(scrollTop) {
-  const panel = sidePanelElement.value;
-  if (!panel || !isMobile() || scrollTop <= 0.5) {
-    clearMobileCollapse();
-    return;
-  }
-
-  const expandedHeader = panel.querySelector(".mobile-expanded-header");
-  const provider = panel.querySelector(":scope > .provider-switch");
-  const toolbar = panel.querySelector(":scope > .toolbar");
-  const actions = panel.querySelector(":scope > .explore-toolbar");
-  const status = panel.querySelector(":scope > .status-line");
-  if (!expandedMobileHeaderHeight && expandedHeader) expandedMobileHeaderHeight = expandedHeader.scrollHeight;
-  if (!expandedMobileProviderHeight && provider) expandedMobileProviderHeight = provider.scrollHeight;
-  if (!expandedMobileToolbarHeight && toolbar) expandedMobileToolbarHeight = toolbar.scrollHeight;
-  if (!expandedMobileActionsHeight && actions) expandedMobileActionsHeight = actions.scrollHeight;
-  if (!expandedMobileStatusHeight && status) expandedMobileStatusHeight = status.scrollHeight;
-
-  const progress = Math.min(1, scrollTop / MOBILE_COLLAPSE_END);
-  const headerProgress = stage(scrollTop, 0, 95);
-  const summaryProgress = stage(scrollTop, 45, 105);
-  const providerProgress = stage(scrollTop, 55, 150);
-  const toolbarProgress = stage(scrollTop, 145, MOBILE_COLLAPSE_END);
-  const actionsProgress = stage(scrollTop, 115, MOBILE_COLLAPSE_END);
-  const toolbarOpacity = scrollTop < 180
-    ? 1 - stage(scrollTop, 145, 180)
-    : stage(scrollTop, 180, MOBILE_COLLAPSE_END);
-  const baseGap = 12 - progress * 4;
-  const expandedHeaderHeight = expandedMobileHeaderHeight || 118;
-  const providerHeight = expandedMobileProviderHeight;
-  const actionsHeight = expandedMobileActionsHeight;
-  const statusHeight = expandedMobileStatusHeight;
-
-  setMobileVariable(panel, "--mobile-header-height", `${expandedHeaderHeight + (30 - expandedHeaderHeight) * headerProgress}px`);
-  setMobileVariable(panel, "--mobile-expanded-opacity", String(1 - headerProgress));
-  setMobileVariable(panel, "--mobile-summary-opacity", String(summaryProgress));
-  setMobileVariable(panel, "--mobile-provider-height", `${providerHeight * (1 - providerProgress)}px`);
-  setMobileVariable(panel, "--mobile-provider-opacity", String(1 - stage(scrollTop, 55, 105)));
-  setMobileVariable(panel, "--mobile-toolbar-height", `${expandedMobileToolbarHeight + (40 - expandedMobileToolbarHeight) * toolbarProgress}px`);
-  setMobileVariable(panel, "--mobile-toolbar-opacity", String(toolbarOpacity));
-  setMobileVariable(panel, "--mobile-actions-height", `${actionsHeight * (1 - actionsProgress)}px`);
-  setMobileVariable(panel, "--mobile-actions-opacity", String(1 - actionsProgress));
-  setMobileVariable(panel, "--mobile-status-height", `${statusHeight * (1 - actionsProgress)}px`);
-  setMobileVariable(panel, "--mobile-status-opacity", String(1 - actionsProgress));
-  setMobileVariable(panel, "--mobile-header-gap", `${baseGap}px`);
-  setMobileVariable(panel, "--mobile-provider-gap", `${baseGap * (1 - providerProgress)}px`);
-  setMobileVariable(panel, "--mobile-toolbar-gap", `${baseGap}px`);
-  setMobileVariable(panel, "--mobile-actions-gap", `${baseGap * (1 - actionsProgress)}px`);
-  setMobileVariable(panel, "--mobile-status-gap", `${baseGap * (1 - actionsProgress)}px`);
-
-  mobileHeaderCollapsing.value = true;
-  mobileFilterHorizontal.value = scrollTop >= 180;
-  mobileHeaderCompact.value = scrollTop >= MOBILE_COLLAPSE_END;
-}
-
-function handleListScroll(event) {
-  pendingMobileScrollTop = event.currentTarget.scrollTop;
-  if (mobileCollapseFrame) return;
-  mobileCollapseFrame = window.requestAnimationFrame(() => {
-    mobileCollapseFrame = 0;
-    applyMobileCollapse(pendingMobileScrollTop);
-  });
-}
-
-function handleViewportResize() {
-  if (!isMobile()) clearMobileCollapse();
 }
 
 function waitFrame() {
@@ -264,33 +147,58 @@ async function loadFilters() {
 async function loadPlaces() {
   const requestId = ++placesRequestId;
   try {
-    const loadedPlaces = await getPublicPlaces(filters.value);
-    if (requestId !== placesRequestId) return;
+    loadingPlaces.value = true;
+    const loadedPlaces = await getPublicPlaces();
+    if (disposed || requestId !== placesRequestId) return;
     places.value = loadedPlaces;
     if (filters.value.city && !cityOptions.value.includes(filters.value.city)) filters.value.city = "";
     if (filters.value.author && !authorOptions.value.includes(filters.value.author)) filters.value.author = "";
     error.value = "";
     await nextTick();
-    renderMarkers();
+    restoreScroll();
+    renderMarkers(!initialFitDone);
     focusInitialPlace();
   } catch (err) {
     if (requestId !== placesRequestId) return;
     error.value = err.message;
+  } finally {
+    if (!disposed && requestId === placesRequestId) loadingPlaces.value = false;
   }
 }
 
-function renderMarkers(fit = true) {
-  if (!map.value || !AMapRef.value) return;
-  clearMarkerClusters();
-  storeMarkerData = visiblePlaces.value.map((place) => ({
-    lnglat: [Number(place.lng), Number(place.lat)],
-    place,
-  }));
-  if (storeMarkerData.length) {
-    cityMarkers.value = groupPlacesByCity(visiblePlaces.value).map(createCityMarker);
-    syncMarkerMode(true);
+function renderMarkers(fit = false) {
+  if (!map.value || !AMapRef.value || !infoWindow.value) return;
+  if (selectedId.value && !visiblePlaces.value.some((place) => place.id === selectedId.value)) {
+    selectedId.value = null;
+    pendingPlace = null;
+    focusToken++;
+    infoWindow.value.close();
   }
-  if (fit) fitAll();
+  const signature = visiblePlaces.value.map((place) => [place.id, place.lng, place.lat, place.rating, place.name, place.recommend_level, place.updated_at].join(":")).join("|");
+  if (signature !== markerSignature) {
+    markerSignature = signature;
+    storeMarkerData = visiblePlaces.value.map((place) => ({ lnglat: [Number(place.lng), Number(place.lat)], place }));
+    const groups = groupPlacesByCity(visiblePlaces.value);
+    const keys = new Set(groups.map((group) => group.city));
+    cityMarkerCache.forEach((entry, key) => {
+      if (!keys.has(key)) { entry.marker.setMap(null); cityMarkerCache.delete(key); }
+    });
+    groups.forEach((group) => {
+      const key = group.places.map((place) => [place.id, place.lng, place.lat, place.updated_at].join(":")).join(",");
+      let entry = cityMarkerCache.get(group.city);
+      if (entry?.key === key) return;
+      entry?.marker.setMap(null);
+      entry = { key, marker: createCityMarker(group) };
+      cityMarkerCache.set(group.city, entry);
+    });
+    cityMarkers.value = [...cityMarkerCache.values()].map((entry) => entry.marker);
+    markerCluster.value?.setData(storeMarkerData);
+    if (!storeMarkerData.length) {
+      infoWindow.value.close();
+      selectedId.value = null;
+    } else { syncMarkerMode(true); }
+  }
+  if (fit && visiblePlaces.value.length) { fitAll(); initialFitDone = true; }
 }
 
 function groupPlacesByCity(source) {
@@ -308,6 +216,8 @@ function clearMarkerClusters() {
   if (cityMarkers.value.length) map.value?.remove?.(cityMarkers.value);
   cityMarkers.value.forEach((marker) => marker.setMap?.(null));
   cityMarkers.value = [];
+  cityMarkerCache.clear();
+  markerSignature = "";
   storeMarkerData = [];
   activeMarkerMode = "";
 }
@@ -412,7 +322,7 @@ function focusCity(cityPlaces) {
     [Math.min(...lngs), Math.min(...lats)],
     [Math.max(...lngs), Math.max(...lats)],
   );
-  map.value.setBounds(bounds, true, isMobile() ? [52, 32, 52, 32] : [60, 60, 60, 460]);
+  map.value.setBounds(bounds, true, [52, 32, 52, 32]);
 }
 
 function syncMarkerMode(force = false) {
@@ -448,7 +358,6 @@ function beginMapMove() {
   if (!isMapMoving) {
     isMapMoving = true;
     document.body.classList.add("map-moving");
-    if (infoWindow.value) infoWindow.value.close();
     if (map.value) applyMovingMapFeatures(map.value);
   }
   movingTimer = window.setTimeout(finishMapMove, 1200);
@@ -459,7 +368,7 @@ function finishMapMove() {
   document.body.classList.remove("map-moving");
   if (map.value) applyMapLabels(map.value, AMapRef.value, mapTheme.value);
   syncCityLabelDensity();
-  refreshBaseLabelsSoon(260);
+  updateViewportState();
 }
 
 function endMapMove() {
@@ -468,8 +377,8 @@ function endMapMove() {
 }
 
 function fitAll() {
-  if (!visiblePlaces.value.length) return;
-  const padding = isMobile() ? [52, 32, 52, 32] : [60, 60, 60, 460];
+  if (!map.value || !visiblePlaces.value.length) return;
+  const padding = [52, 32, 52, 32];
   const lngs = visiblePlaces.value.map((place) => Number(place.lng));
   const lats = visiblePlaces.value.map((place) => Number(place.lat));
   const minLng = Math.min(...lngs);
@@ -486,37 +395,65 @@ function fitAll() {
 }
 
 function refreshVisiblePlaces() {
-  renderMarkers();
+  if (selectedId.value && !visiblePlaces.value.some((place) => place.id === selectedId.value)) {
+    selectedId.value = null;
+    pendingPlace = null;
+    focusToken++;
+    infoWindow.value?.close();
+  }
+  renderMarkers(false);
 }
 
 function findNearby() {
+  if (locating.value) return;
   if (nearbyMode.value) {
     nearbyMode.value = false;
+    userLocation.value = null;
     actionMessage.value = "";
     refreshVisiblePlaces();
     return;
   }
-  if (!navigator.geolocation) {
-    actionMessage.value = "当前设备不支持定位。";
-    return;
-  }
+  if (!navigator.geolocation) { actionMessage.value = "当前设备不支持定位。"; return; }
+  const request = ++locationRequest;
+  locating.value = true;
   actionMessage.value = "正在获取位置...";
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      userLocation.value = {
-        lng: Number(position.coords.longitude),
-        lat: Number(position.coords.latitude),
-      };
-      nearbyMode.value = true;
-      actionMessage.value = "已按距离显示附近店家。";
-      refreshVisiblePlaces();
-      if (visiblePlaces.value[0]) schedule(() => focusPlace(visiblePlaces.value[0]), 120);
-    },
-    () => {
-      actionMessage.value = "定位失败，请检查浏览器定位权限。";
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
-  );
+  navigator.geolocation.getCurrentPosition((position) => {
+    if (disposed || request !== locationRequest) return;
+    locating.value = false;
+    userLocation.value = { lng: position.coords.longitude, lat: position.coords.latitude };
+    nearbyMode.value = true;
+    nearbyRadius.value = 30;
+    viewportBounds.value = null;
+    actionMessage.value = "附近 30 公里，按距离排序";
+    renderMarkers(true);
+  }, () => {
+    if (disposed || request !== locationRequest) return;
+    locating.value = false;
+    actionMessage.value = "定位失败，请检查浏览器定位权限。";
+  }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+}
+
+function expandNearby() {
+  nearbyRadius.value = 100;
+  actionMessage.value = "附近 100 公里，按距离排序";
+  renderMarkers(true);
+}
+
+function currentBounds() {
+  const bounds = map.value?.getBounds?.();
+  const sw = bounds?.getSouthWest?.(), ne = bounds?.getNorthEast?.();
+  return sw && ne ? { minLng: Number(sw.lng), minLat: Number(sw.lat), maxLng: Number(ne.lng), maxLat: Number(ne.lat) } : null;
+}
+function updateViewportState() {
+  viewportDirty.value = !sameBounds(viewportBounds.value, currentBounds());
+}
+function searchViewport() {
+  const bounds = currentBounds();
+  if (!bounds) return;
+  viewportBounds.value = bounds;
+  viewportDirty.value = false;
+  actionMessage.value = "已更新此区域的店家";
+  refreshVisiblePlaces();
 }
 
 function randomPlace() {
@@ -532,35 +469,26 @@ function randomPlace() {
 function toggleViewportFilter() {
   if (viewportBounds.value) {
     viewportBounds.value = null;
-    renderMarkers();
-    return;
-  }
-  const bounds = map.value?.getBounds?.();
-  const southWest = bounds?.getSouthWest?.();
-  const northEast = bounds?.getNorthEast?.();
-  if (!southWest || !northEast) {
-    actionMessage.value = "当前地图视野暂不可读取。";
-    return;
-  }
-  viewportBounds.value = {
-    minLng: Number(southWest.lng),
-    minLat: Number(southWest.lat),
-    maxLng: Number(northEast.lng),
-    maxLat: Number(northEast.lat),
-  };
-  actionMessage.value = "已筛选当前地图视野。";
-  renderMarkers(false);
+    actionMessage.value = "";
+    refreshVisiblePlaces();
+  } else { searchViewport(); }
 }
 
-async function resetFilters() {
+function resetFilters() {
   Object.assign(filters.value, { category: "", recommend: "", city: "", author: "" });
+  query.value = "";
   viewportBounds.value = null;
+  nearbyMode.value = false;
+  userLocation.value = null;
+  nearbyRadius.value = 30;
+  locationRequest++;
+  locating.value = false;
   actionMessage.value = "";
-  await loadPlaces();
+  refreshVisiblePlaces();
 }
 
 function focusInitialPlace() {
-  if (initialPlaceFocused.value) return;
+  if (initialPlaceFocused.value || !infoWindow.value) return;
   const placeId = new URLSearchParams(window.location.search).get("place");
   if (!placeId) return;
   const target = domesticPlaces.value.find((place) => String(place.id) === String(placeId));
@@ -570,17 +498,19 @@ function focusInitialPlace() {
 }
 
 function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value;
-  resizeMapSoon();
+  if (sidebarCollapsed.value) showList();
+  else showMap();
 }
 
 function showList() {
+  dismissLoading();
   if (!sidebarCollapsed.value) return;
   sidebarCollapsed.value = false;
   resizeMapSoon();
 }
 
 function showMap() {
+  revealLoading();
   if (sidebarCollapsed.value) return;
   sidebarCollapsed.value = true;
   resizeMapSoon();
@@ -588,12 +518,19 @@ function showMap() {
 
 function toggleMapTheme() {
   mapTheme.value = mapTheme.value === "night" ? "day" : "night";
-  map.value.setMapStyle(mapTheme.value === "night" ? "amap://styles/dark" : "amap://styles/normal");
+  map.value?.setMapStyle(mapTheme.value === "night" ? "amap://styles/dark" : "amap://styles/normal");
   refreshBaseLabelsSoon(220, true);
   document.body.classList.toggle("map-day", mapTheme.value === "day");
 }
 
 async function focusPlace(place) {
+  selectedId.value = place.id;
+  if (!infoWindow.value || mapPhase.value !== "ready") {
+    pendingPlace = place;
+    showMap();
+    return;
+  }
+  pendingPlace = null;
   const token = ++focusToken;
   const lng = Number(place.lng);
   const lat = Number(place.lat);
@@ -601,12 +538,14 @@ async function focusPlace(place) {
   if (isMobile()) {
     sidebarCollapsed.value = true;
     await nextTick();
+    if (disposed || token !== focusToken || !map.value) return;
     map.value.resize();
     await waitFrame();
     await waitFrame();
+    if (disposed || token !== focusToken || !map.value) return;
     map.value.resize();
   }
-  const targetZoom = isMobile() ? 16 : Math.max(map.value.getZoom(), 15);
+  const targetZoom = Math.max(map.value.getZoom(), isMobile() ? 16 : 15);
   const moveDuration = isMobile() ? 180 : 220;
   map.value.setZoomAndCenter(targetZoom, position, false, moveDuration);
   refreshBaseLabelsSoon(1000);
@@ -615,7 +554,7 @@ async function focusPlace(place) {
     infoWindow.value.setContent(infoHtml(place, { deferImages: true }));
     infoWindow.value.open(map.value, position);
     hydrateDeferredImages();
-  }, Math.max(120, moveDuration - 40));
+  }, moveDuration + 80);
 }
 
 function removeSingleMarkerHandler(marker) {
@@ -654,6 +593,8 @@ function renderSingleMarker(context) {
 }
 
 function handleMapComplete() {
+  mapReady();
+  if (pendingPlace) focusPlace(pendingPlace);
   syncCityLabelDensity();
   refreshBaseLabelsSoon(80, true);
 }
@@ -662,24 +603,24 @@ function handleZoomEnd() {
   endMapMove();
   syncMarkerMode();
   schedule(syncCityLabelDensity, 80);
-  refreshBaseLabelsSoon(220);
 }
 
-onMounted(async () => {
-  try {
-    adSlotDismissed.value = window.sessionStorage.getItem(AD_SLOT_SESSION_KEY) === "true";
-  } catch {
-    adSlotDismissed.value = false;
+async function initializeMap() {
+  const generation = beginLoading();
+  if (map.value) {
+    clearMarkerClusters();
+    infoWindow.value?.close();
+    infoWindow.value = null;
+    map.value.destroy();
+    map.value = null;
   }
   try {
-    document.body.classList.add("map-day");
-    window.addEventListener("resize", handleViewportResize, { passive: true });
-    AMapRef.value = await loadAmap();
-    map.value = new AMapRef.value.Map("publicMap", {
-      ...mapOptions(),
-    });
-    await loadAmapPlugin(AMapRef.value, ["AMap.MarkerCluster"]);
-    applyMapLabels(map.value, AMapRef.value, mapTheme.value);
+    const api = await loadAmap();
+    await loadAmapPlugin(api, ["AMap.MarkerCluster", "AMap.Scale"]);
+    if (!currentLoading(generation)) return;
+    AMapRef.value = api;
+    mapRendering();
+    map.value = new api.Map("publicMap", { ...mapOptions(), mapStyle: mapTheme.value === "day" ? "amap://styles/normal" : "amap://styles/dark" });
     map.value.on("complete", handleMapComplete);
     map.value.on("movestart", beginMapMove);
     map.value.on("dragstart", beginMapMove);
@@ -687,29 +628,35 @@ onMounted(async () => {
     map.value.on("dragend", endMapMove);
     map.value.on("zoomstart", beginMapMove);
     map.value.on("zoomend", handleZoomEnd);
-    scaleControl = new AMapRef.value.Scale();
+    scaleControl = new api.Scale();
     map.value.addControl(scaleControl);
-    infoWindow.value = new AMapRef.value.InfoWindow({
-      autoMove: false,
-      closeWhenClickMap: true,
-      offset: new AMapRef.value.Pixel(0, -20),
-      showShadow: false,
-    });
-    await loadFilters();
-    await loadPlaces();
+    infoWindow.value = new api.InfoWindow({ autoMove: false, closeWhenClickMap: true, offset: new api.Pixel(0, -20), showShadow: false });
+    applyMapLabels(map.value, api, mapTheme.value);
+    renderMarkers(!initialFitDone);
+    focusInitialPlace();
     resizeMapSoon();
   } catch (err) {
-    error.value = err.message;
+    if (currentLoading(generation)) mapFailed(err.message);
   }
+}
+
+onMounted(() => {
+  document.body.classList.toggle("map-day", mapTheme.value === "day");
+  try { adSlotDismissed.value = window.sessionStorage.getItem(AD_SLOT_SESSION_KEY) === "true"; } catch { /* Optional preference. */ }
+  loadFilters().catch(() => {});
+  loadPlaces();
+  initializeMap();
 });
 
 onUnmounted(() => {
+  disposed = true;
+  placesRequestId++;
+  locationRequest++;
+  clearTimeout(searchTimer);
   focusToken += 1;
   window.clearTimeout(baseLabelTimer);
   window.clearTimeout(baseLabelFollowupTimer);
   window.clearTimeout(movingTimer);
-  window.cancelAnimationFrame(mobileCollapseFrame);
-  window.removeEventListener("resize", handleViewportResize);
   pendingTimers.forEach((timer) => window.clearTimeout(timer));
   pendingTimers.clear();
   document.body.classList.remove("map-moving", "map-day");
@@ -739,7 +686,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+  <main class="app-shell browse-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed, 'is-booting': loadingScreen }" :inert="loadingScreen || null" :aria-busy="loadingScreen">
     <button class="sidebar-toggle desktop-sidebar-toggle" type="button" :aria-expanded="String(!sidebarCollapsed)" aria-controls="foodSidebar" @click="toggleSidebar">
       {{ sidebarCollapsed ? "展开列表" : "隐藏列表" }}
     </button>
@@ -782,17 +729,13 @@ onUnmounted(() => {
       id="foodSidebar"
       v-show="!sidebarCollapsed"
       class="side-panel"
-      :class="{
-        'mobile-header-collapsing': mobileHeaderCollapsing,
-        'mobile-header-compact': mobileHeaderCompact,
-        'mobile-filter-horizontal': mobileFilterHorizontal,
-      }"
     >
       <header>
         <div class="mobile-expanded-header">
           <p class="eyebrow">DUSKRAIN TASTE MAP</p>
           <h1>DuskRain美食地图</h1>
-          <p class="subtle">地图收录本人及朋友实际到店体验的店铺，支持按分类和推荐等级筛选，并快速查看推荐与避雷信息。</p>
+          <p class="subtle">每一份评分，都来自亲自到店的体验。</p>
+          <div class="browse-overview"><span><strong>{{ domesticPlaces.length }}</strong> 家店</span><span><strong>{{ cityOptions.length }}</strong> 个地区</span><span><strong>{{ authorOptions.length }}</strong> 位作者</span></div>
           <div v-if="!ADS_ENABLED && !guidePromoDismissed" class="annual-guide-wrap">
             <a class="annual-guide-entry" href="/food-map/guide/2026/">
               <span>LÜ GUIDE · ÉDITION 2026</span>
@@ -875,29 +818,31 @@ onUnmounted(() => {
         <a class="provider-switch-btn" href="/food-map/global/">国外 Google</a>
       </div>
 
+      <div class="browse-controls">
+        <label class="browse-search"><Search :size="17" aria-hidden="true" /><input v-model="query" type="search" placeholder="搜索店名、城市或地址" aria-label="搜索店家" /></label>
       <section class="toolbar">
-        <div class="field">
+        <div class="field" :class="{ 'is-active': filters.category }">
           <label for="categoryFilter">分类</label>
-          <select id="categoryFilter" v-model="filters.category" @change="loadPlaces">
+          <select id="categoryFilter" v-model="filters.category" @change="refreshVisiblePlaces">
             <option value="">全部分类</option>
             <option v-for="category in categories" :key="category" :value="category">{{ category }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field" :class="{ 'is-active': filters.recommend }">
           <label for="recommendFilter">推荐</label>
-          <select id="recommendFilter" v-model="filters.recommend" @change="loadPlaces">
+          <select id="recommendFilter" v-model="filters.recommend" @change="refreshVisiblePlaces">
             <option value="">全部推荐</option>
             <option v-for="level in recommendLevels" :key="level" :value="level">{{ level }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field" :class="{ 'is-active': filters.city }">
           <label for="cityFilter">城市</label>
-          <select id="cityFilter" v-model="filters.city" @change="refreshVisiblePlaces">
+          <select id="cityFilter" v-model="filters.city" @change="renderMarkers(true)">
             <option value="">全部城市</option>
             <option v-for="city in cityOptions" :key="city" :value="city">{{ city }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field" :class="{ 'is-active': filters.author }">
           <label for="authorFilter">作者</label>
           <select id="authorFilter" v-model="filters.author" @change="refreshVisiblePlaces">
             <option value="">全部作者</option>
@@ -906,17 +851,19 @@ onUnmounted(() => {
         </div>
       </section>
 
+      <div class="browse-result"><span>{{ hasActiveFilters ? '筛选结果' : '全部店家' }} <strong>{{ visiblePlaces.length }}</strong> 家</span><button v-if="hasActiveFilters" class="browse-reset" type="button" @click="resetFilters"><RotateCcw :size="13" />重置</button></div>
+      </div>
       <div class="explore-toolbar">
         <div class="explore-actions">
-          <button class="btn secondary action-command" :class="{ 'is-active': nearbyMode }" type="button" @click="findNearby">
+          <button class="btn secondary action-command" :class="{ 'is-active': nearbyMode }" type="button" :disabled="locating" @click="findNearby">
             <MapPin :size="17" :stroke-width="1.8" aria-hidden="true" />
-            <span>{{ nearbyMode ? "取消附近" : "附近店家" }}</span>
+            <span>{{ locating ? "定位中" : nearbyMode ? "取消附近" : "附近店家" }}</span>
           </button>
-          <button class="btn secondary action-command" type="button" @click="randomPlace">
+          <button class="btn secondary action-command" type="button" :disabled="!visiblePlaces.length" @click="randomPlace">
             <Shuffle :size="17" :stroke-width="1.8" aria-hidden="true" />
             <span>随机探店</span>
           </button>
-          <button class="btn secondary action-command viewport-command" :class="{ 'is-active': viewportBounds }" type="button" @click="toggleViewportFilter">
+          <button class="btn secondary action-command viewport-command" :class="{ 'is-active': viewportBounds }" type="button" :disabled="mapPhase !== 'ready'" @click="toggleViewportFilter">
             <ScanSearch :size="17" :stroke-width="1.8" aria-hidden="true" />
             <span>{{ viewportBounds ? "取消视野" : "当前视野" }}</span>
           </button>
@@ -929,36 +876,22 @@ onUnmounted(() => {
       </div>
       <div v-if="actionMessage" class="status-line">{{ actionMessage }}</div>
 
-      <section ref="listElement" class="list" aria-live="polite" @scroll.passive="handleListScroll">
-        <article v-if="error" class="place-item">
-          <p class="subtle">{{ error }}</p>
+      <section ref="listElement" class="list" aria-live="polite" :aria-busy="loadingPlaces">
+        <div v-if="loadingPlaces && !places.length" class="list-skeleton" role="status" aria-label="店家加载中"><div v-for="n in 3" :key="n"><i /><i /><i /></div></div>
+        <article v-else-if="error" class="place-item">
+          <p class="subtle">{{ error }}</p><button class="btn secondary" type="button" @click="loadPlaces">重新加载店家</button>
         </article>
         <article v-else-if="!visiblePlaces.length" class="place-item">
-          <p class="subtle">{{ hasActiveFilters ? "当前筛选条件下没有店家，请调整筛选项。" : "还没有公开店铺。" }}</p>
+          <p class="subtle">{{ nearbyMode ? `附近 ${nearbyRadius} 公里没有符合条件的店家。` : hasActiveFilters ? "当前筛选条件下没有店家，请调整筛选项。" : "还没有公开店铺。" }}</p>
         </article>
-        <article v-for="place in visiblePlaces" :key="place.id" class="place-item" @click="focusPlace(place)">
-          <div class="item-title">
-            <span>{{ place.name }}</span>
-            <span class="rating">{{ place.rating ?? "-" }} / 10 · {{ place.rating_author || "吕俊泽" }}</span>
-          </div>
-          <div v-if="imageList(place).length && !place.hide_images" class="image-strip">
-            <img v-for="url in imageList(place).slice(0, 1)" :key="url" :src="url" :alt="place.name" loading="lazy" decoding="async">
-          </div>
-          <div class="subtle">{{ formatAddress(place) }}</div>
-          <div class="pill-row">
-            <span v-if="place.distanceKm != null" class="pill">{{ place.distanceKm.toFixed(1) }} 公里</span>
-            <span v-for="category in placeCategories(place)" :key="category" class="pill">{{ category }}</span>
-            <span v-if="place.recommend_level" class="pill">{{ place.recommend_level }}</span>
-            <span class="pill">美食评价</span>
-            <span v-if="place.business_hours" class="pill">{{ place.business_hours }}</span>
-          </div>
-          <div v-if="place.phone" class="subtle">电话：{{ place.phone }}</div>
-          <div v-if="place.note" class="subtle">{{ place.note }}</div>
-        </article>
+        <button v-if="nearbyMode && !visiblePlaces.length && nearbyRadius === 30" class="btn secondary" type="button" @click="expandNearby">扩大到 100 公里</button>
+        <BrowsePlaceCard v-for="place in visiblePlaces" :key="place.id" :place="place" :selected="selectedId === place.id" :address="formatAddress(place)" :image="imageList(place)[0]" :categories="placeCategories(place)" :review-href="`/food-map/review/${place.id}`" @select="focusPlace" />
       </section>
     </aside>
     <section class="map-stage">
       <div id="publicMap" class="map-canvas"></div>
+      <button v-if="mapPhase === 'ready' && viewportDirty" class="area-search btn action-command" type="button" @click="searchViewport"><ScanSearch :size="16" />搜索这片区域</button>
     </section>
+    <MapLoading :visible="loadingScreen" :phase="loadingPhase" :message="mapMessage" :theme="mapTheme" provider="AMAP" @retry="initializeMap" @list="showList" @theme="toggleMapTheme" />
   </main>
 </template>

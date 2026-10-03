@@ -34,22 +34,44 @@ DuskRain 吕其林美食指南是一个自用的跨地图美食资料库。国�
 
 ## 实际界面
 
+以下截图来自 2026-10-04 的线上页面，保留地图来源标识。店铺数量、作者与评分是当时的公开展示快照，不是仓库内置数据。
+
 ### 桌面端国内地图
 
-![桌面端国内美食地图](assets/screenshots/desktop-map.png)
+![桌面端国内美食地图：搜索筛选、店家列表与地图信息窗体](assets/screenshots/desktop-map-20261004.png)
 
-### 移动端列表与渐进收纳
+### 全屏加载与夜间浏览
 
 <table>
   <tr>
-    <td align="center"><strong>完整筛选与探索操作</strong></td>
-    <td align="center"><strong>滚动后的紧凑浏览模式</strong></td>
+    <td align="center"><strong>全屏加载与列表入口</strong></td>
+    <td align="center"><strong>地图、侧栏与信息窗体统一夜间主题</strong></td>
   </tr>
   <tr>
-    <td align="center"><img src="assets/screenshots/mobile-list.png" alt="移动端完整商家列表" width="320" /></td>
-    <td align="center"><img src="assets/screenshots/mobile-compact-list.png" alt="移动端紧凑商家列表" width="320" /></td>
+    <td><img src="assets/screenshots/loading-20261004.png" alt="DuskRain 全屏地图加载界面" width="520" /></td>
+    <td><img src="assets/screenshots/night-map-20261004.png" alt="夜间地图和侧栏" width="520" /></td>
   </tr>
 </table>
+
+### 移动端连续浏览
+
+<p align="center">
+  <img src="assets/screenshots/mobile-list-20261004.png" alt="移动端吸顶搜索和筛选，完整显示店名、评分、作者的图文卡片" width="320" />
+</p>
+
+向下浏览时，标题和概览自然滚出，搜索、筛选和结果数量保持可见。店名、评分与作者自动换行；进入评价页再返回，恢复之前的筛选与列表位置。
+
+## 本次更新 · 2026-10-04
+
+| 改动 | 浏览体验 |
+| --- | --- |
+| 全屏加载 | 覆盖地图和侧栏，跟随地图与首次店家数据的真实状态结束；支持日夜切换、失败重试和先看列表 |
+| 统一店家卡片 | 国内、海外共用图文布局，完整展示店名、评分和作者，支持选中反馈、电话及评价链接 |
+| 连续浏览 | 原生滚动与吸顶筛选，筛选后定位首条结果；手动滚动或点击可以接管自动滚动 |
+| 探索操作 | 关键词搜索、附近店家、随机探店、当前视野与条件重置；普通筛选保留地图视角 |
+| 加载与地图更新 | 页面按需加载，公开请求有超时处理，复用聚合与已有标记；地图卸载时释放资源 |
+
+加载过程不模拟百分比，也不人为延迟。支持键盘操作和系统“减少动态效果”偏好。功能检查记录见[首页优化记录](docs/HOMEPAGE_OPTIMIZATION_20261003.md)和[全屏加载与侧栏验证](docs/FULLSCREEN_AND_SIDEBAR_20261004.md)。
 
 ## 核心工作流
 
@@ -62,29 +84,35 @@ DuskRain 吕其林美食指南是一个自用的跨地图美食资料库。国�
 
 ## 功能亮点
 
-- 国内高德地图和海外 Google Maps 分离展示。
-- 管理端支持高德、Google Places 搜索候选店铺并点击加入。
-- 超级管理员后台继续由 Authelia 与 Google TOTP 保护，可管理全部店家和作者账号。
-- 独立作者工作台使用应用内账号登录，首次登录强制修改临时密码，只能管理本人名下的店家。
-- 普通作者工作台支持高德与 Google 地图选点、搜索新建和固定作者批量导入；作者字段由后端自动锁定。
-- 同一地图 POI 可由不同作者分别评价，权限归属以 `rating_author` 为准。
-- 管理端支持粘贴“编号 店名 城市或地址 评分 推荐等级 作者 菜系”清单，一键匹配高德 POI、补全资料并批量新建；多个菜系使用“、”分隔。
-- 推荐等级支持“必去 / 推荐 / 一般 / 避雷”；未填写时按评分自动设置，作者未填写时默认为吕俊泽，菜系写入个人分类。
-- 城市或地址不完整时使用模糊搜索，并自动采用本站匹配分最高的第一个候选。
-- 同一店家允许不同作者分别保存评价；同作者重复导入时自动合并非空字段，保留信息更完整的一条。
-- Google 管理端提供 249 个国家和地区的中英文快速选择。
-- 支持直接点击地图 POI 导入商家，点击空白位置反向解析地址。
-- 自动保存平台 POI ID、地址、电话、营业时间、类型、坐标和平台详情链接。
-- 个人评分、评分作者、推荐等级、多选菜系、标签、备注、图片和 Markdown 评价。
-- 地图点位显示评分与店家名，点击后打开统一信息卡片。
-- 国内地图支持城市聚合、店家标签和日夜模式。
-- 海外地图按 Google 店铺分类筛选，并支持日夜底图切换。
-- 海外地图可选同步显示国内高德店家，自动进行 GCJ-02 到 WGS84 转换。
-- 海外页面的菜系、城市、作者、列表和点位共用同一数据集合：开启国内同步后自动加入国内选项，关闭后自动移除。
-- 桌面端侧栏管理，移动端列表和地图快速切换。
-- 国内与海外首页均提供附近店家、随机探店、当前视野、结果数量和条件式重置筛选。
-- 移动端商家列表采用渐进式收纳：随滚动依次缩短品牌说明、地图来源、同步项和探索操作，最终只保留结果数、重置入口与横向筛选器；回滑时按相反顺序恢复。
-- 本地安全 GitHub 发布脚本，默认屏蔽环境变量、数据库、备份和构建文件。
+### 找到想去的店
+
+- 国内高德地图与海外 Google Maps 独立入口，支持日夜主题、地图与列表切换。
+- 按关键词、菜系、推荐等级、城市和作者组合筛选，地图点位与列表同步。
+- 附近店家默认筛选 30 公里并按距离排序，无结果时可主动扩大到 100 公里；定位需要浏览器授权。
+- 随机探店从当前结果选择一家；移动地图后可以搜索当前区域。
+- 国内地图支持城市聚合，店家点展示评分与名称，点击打开地址、电话、营业时间和评价入口。
+- 海外地图可选显示国内店家，转换坐标并同步更新分类选项；关闭同步时移除国内结果及对应选项。
+
+### 记录与维护
+
+- 高德与 Google Places 搜索、地图 POI 点击加入、空白位置反向解析地址。
+- 补全平台提供的店名、地址、电话、营业时间、类型、行政区、坐标和详情链接；字段是否齐全取决于数据源。
+- 个人评分、作者、推荐等级、多选菜系、标签、图片、备注与支持插图的 Markdown 长评。
+- 超级管理员维护全部店家与作者；普通作者可搜索、选点、批量新建，并维护自己的记录。
+- 同一店家可由不同作者分别评价；同作者重复导入合并非空信息。账户归属以稳定的 `owner_account_id` 为准，作者改名不会改变所有权。
+- Google 管理端提供国家和地区的中英文下拉选择。
+
+### 批量录入
+
+超级管理员可粘贴以下格式，多个菜系用“、”分隔：
+
+```text
+编号 店名 城市/地址 评分 推荐等级 作者 菜系
+1 喜家德（凯德广场店） 哈尔滨 8.2 推荐 吕俊泽 连锁家常、饺子
+2 探匠烧烤(哈西大街店) 哈尔滨 9.8
+```
+
+普通作者不填作者列，后端固定为当前账户。推荐等级支持“必去 / 推荐 / 一般 / 避雷”；省略时，评分大于等于 8 为“推荐”，低于 8 为“一般”。超级管理员导入省略作者时默认吕俊泽。地址不全时按模糊匹配分采用第一候选，导入前应核对同名店与分店。
 
 ## 页面入口
 
@@ -144,6 +172,13 @@ flowchart TB
 
 ## 快速开始
 
+需要 Docker Engine / Docker Desktop 和 Compose。前端单独开发需要 Node.js 20，后端单独开发需要 Python 3.11 或更高版本。仓库提供源码和配置模板，不含线上店家数据库、作者账户或实际 API 凭据。
+
+```powershell
+git clone https://github.com/ETO-ze/duskrain-food-map.git
+cd duskrain-food-map
+```
+
 1. 复制环境变量模板：
 
 ```powershell
@@ -151,6 +186,17 @@ Copy-Item .env.example .env
 ```
 
 2. 在 `.env` 中配置地图凭据；如需作者邀请与第三方登录，还需配置 SMTP、Google OAuth 和 GitHub OAuth。
+
+| 配置项 | 用途 |
+| --- | --- |
+| `AMAP_JS_KEY`、`AMAP_SECURITY_CODE` | 国内浏览器地图 |
+| `AMAP_WEB_SERVICE_KEY` | 高德服务端 POI 搜索与详情 |
+| `GOOGLE_MAPS_API_KEY` | 海外地图及 Places；需要为项目配置可用 API 与结算 |
+| `FOOD_MAP_PUBLIC_BASE_URL` | 邀请、找回密码及 OAuth 的公开基础地址 |
+| `FOOD_MAP_SMTP_*` | 作者邀请和找回密码邮件 |
+| `FOOD_MAP_GOOGLE_*`、`FOOD_MAP_GITHUB_*` | 可选的作者第三方登录 |
+
+本地调试将 `FOOD_MAP_PUBLIC_BASE_URL` 设为 `http://127.0.0.1:8091/food-map`。正式部署改为自己的 HTTPS 地址，并相应登记 OAuth 回调。
 
 OAuth 生产回调地址：
 
@@ -178,13 +224,19 @@ http://127.0.0.1:8091/food-map/admin/
 http://127.0.0.1:8091/food-map/developer/
 ```
 
+健康检查：`http://127.0.0.1:8091/api/health`。配置好 `.env` 后，Windows 也可双击 `Start Food Map.cmd` 构建并启动。
+
+容器仅绑定本机 `127.0.0.1:8091`，数据持久化到 `./data`。正式对外发布需要配置 HTTPS 反向代理，并用 Authelia 两步验证保护 `/food-map/admin/` 和 `/food-map/api/admin/`，不能只保护管理页面而放开管理 API。仓库的 Compose 不会自动部署 Authelia。
+
 ## 前端开发
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
+
+Vite 用于前端热更新，当前配置未内置后端代理；完整功能优先使用上面的 Docker 方式。联调热更新时需自行将 `/food-map/api` 与 `/food-map/media` 代理到本地后端。不要将开发请求代理到生产写入接口。
 
 生产构建：
 
@@ -192,17 +244,26 @@ npm run dev
 npm run build
 ```
 
-验证批量清单解析：
+在 `frontend` 目录验证搜索、距离、视野边界及批量清单解析：
 
 ```powershell
+npm run test:explore
 npm run test:bulk-import
 ```
 
-验证作者邀请、激活、头像、密码重置和稳定归属：
+在项目根目录、安装 `requirements.txt` 的独立 Python 环境中，验证作者邀请、激活、头像、密码重置和稳定归属：
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+2026-10-04 的本轮界面验证包含 28 项本地 Chromium 检查和 8 项线上检查，覆盖全屏加载、窄屏卡片、筛选、店家信息联动、评论返回位置、失败重试及海外列表回退。这些是浏览器功能检查，不代表真实手机帧率测试。
+
+## 当前边界
+
+- 最近一次 Google 实际底图验证返回 `BillingNotEnabledMapError`。海外列表、同步与回退流程已验证，底图仍需有效的 Google 结算配置；不能用列表正常代替底图可用的验证。
+- 地图搜索结果、营业时间和照片由供应商提供，个人评价由本站保存；两类信息在数据模型中分别管理。
+- 浏览状态只在当前浏览器会话中恢复，精确定位不写入浏览状态。跨设备数据迁移见[迁移说明](docs/MIGRATION.md)。
 
 ## 安全发布到 GitHub
 
@@ -233,6 +294,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish-github-safe.ps1 -Audi
 - [app.py](app.py)：FastAPI API、数据库迁移和高德服务端代理。
 - [frontend/src/components/PublicMap.vue](frontend/src/components/PublicMap.vue)：国内地图。
 - [frontend/src/components/GlobalMap.vue](frontend/src/components/GlobalMap.vue)：海外地图。
+- [frontend/src/components/MapLoading.vue](frontend/src/components/MapLoading.vue)：全屏加载、列表回退与重试。
+- [frontend/src/components/BrowsePlaceCard.vue](frontend/src/components/BrowsePlaceCard.vue)：国内与海外共用店家卡片。
+- [frontend/src/utils/browse-panel.js](frontend/src/utils/browse-panel.js)：筛选后的结果定位与滚动交互。
+- [frontend/src/utils/browse-memory.js](frontend/src/utils/browse-memory.js)：当前会话的筛选与阅读位置恢复。
 - [frontend/src/components/AdminDashboard.vue](frontend/src/components/AdminDashboard.vue)：管理端总控。
 - [frontend/src/components/AdminAuthors.vue](frontend/src/components/AdminAuthors.vue)：超级管理员作者账号管理。
 - [frontend/src/components/DeveloperDashboard.vue](frontend/src/components/DeveloperDashboard.vue)：普通作者登录与本人店家管理。

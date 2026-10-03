@@ -1,11 +1,11 @@
 <script setup>
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import PublicMap from "./components/PublicMap.vue";
-import GlobalMap from "./components/GlobalMap.vue";
-import AdminDashboard from "./components/AdminDashboard.vue";
-import DeveloperDashboard from "./components/DeveloperDashboard.vue";
-import ReviewPage from "./components/ReviewPage.vue";
-import LuGuide2026 from "./components/LuGuide2026.vue";
+const GlobalMap = defineAsyncComponent(() => import("./components/GlobalMap.vue"));
+const AdminDashboard = defineAsyncComponent(() => import("./components/AdminDashboard.vue"));
+const DeveloperDashboard = defineAsyncComponent(() => import("./components/DeveloperDashboard.vue"));
+const ReviewPage = defineAsyncComponent(() => import("./components/ReviewPage.vue"));
+const LuGuide2026 = defineAsyncComponent(() => import("./components/LuGuide2026.vue"));
 
 const isAdmin = computed(() => window.location.pathname.includes("/admin"));
 const isDeveloper = computed(() => window.location.pathname.includes("/developer"));

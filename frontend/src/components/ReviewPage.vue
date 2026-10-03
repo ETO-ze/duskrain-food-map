@@ -10,6 +10,7 @@ const props = defineProps({
 });
 
 const place = ref(null);
+const mapPath = computed(() => new URLSearchParams(window.location.search).get("from") === "global" || place.value?.map_provider === "google" ? "/food-map/global/" : "/food-map/");
 const error = ref("");
 const loading = ref(true);
 
@@ -40,8 +41,8 @@ onMounted(async () => {
 <template>
   <main class="review-shell">
     <nav class="review-nav">
-      <a class="btn secondary" href="/food-map/">返回地图</a>
-      <a v-if="place" class="btn secondary" :href="`/food-map/?place=${place.id}`">查看位置</a>
+      <a class="btn secondary" :href="mapPath">返回地图</a>
+      <a v-if="place" class="btn secondary" :href="`${mapPath}?place=${place.id}`">查看位置</a>
     </nav>
 
     <section v-if="loading" class="review-empty">加载中...</section>

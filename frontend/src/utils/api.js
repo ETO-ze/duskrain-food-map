@@ -4,6 +4,13 @@ const PLACES_CACHE_TTL = 60 * 1000;
 const PLACE_CACHE_TTL = 5 * 60 * 1000;
 const CATEGORY_CACHE_TTL = 30 * 60 * 1000;
 
+async function fetchPublic(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try { return await fetch(url, { signal: controller.signal }); }
+  finally { clearTimeout(timer); }
+}
+
 async function readJson(response) {
   const data = await response.json().catch(() => null);
   const redirectedToLogin = response.redirected && new URL(response.url).pathname.startsWith("/authelia/");
@@ -74,7 +81,7 @@ async function cachedJson(url, key, ttl) {
 async function networkFirstJson(url, key, ttl) {
   const cached = readCache(key, ttl);
   try {
-    const data = await readJson(await fetch(url));
+    const data = await readJson(await fetchPublic(url));
     writeCache(key, data);
     return data;
   } catch (error) {
@@ -90,7 +97,7 @@ function clearPublicPlaceCaches() {
 }
 
 export async function getConfig() {
-  return readJson(await fetch(`${API_BASE}/config`));
+  return readJson(await fetchPublic(`${API_BASE}/config`));
 }
 
 export async function getPublicPlaces(filters = {}) {

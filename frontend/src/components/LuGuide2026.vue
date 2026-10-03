@@ -1,4 +1,6 @@
 <script setup>
+import "@fontsource/italianno/400.css";
+import "@fontsource/zcool-xiaowei/400.css";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import LuEditionSeal from "./LuEditionSeal.vue";
 import LuEvaluationCompass from "./LuEvaluationCompass.vue";

@@ -13,19 +13,30 @@ export async function loadAmap() {
       securityJsCode: config.amapSecurityCode,
     };
     const script = document.createElement("script");
+    const timer = setTimeout(() => failed("高德地图连接超时"), 20000);
+    function failed(message) {
+      clearTimeout(timer);
+      script.remove();
+      reject(new Error(message));
+    }
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(config.amapJsKey)}&plugin=AMap.Scale,AMap.MarkerCluster`;
     script.async = true;
-    script.onload = () => resolve(window.AMap);
-    script.onerror = () => reject(new Error("高德地图脚本加载失败"));
+    script.onload = () => {
+      clearTimeout(timer);
+      if (window.AMap?.Map) resolve(window.AMap);
+      else failed("高德地图初始化失败");
+    };
+    script.onerror = () => failed("高德地图脚本加载失败");
     document.head.appendChild(script);
-  }));
+  })).catch((error) => { amapPromise = null; throw error; });
 
   return amapPromise;
 }
 
 export function loadAmapPlugin(AMap, plugins) {
-  return new Promise((resolve) => {
-    AMap.plugin(plugins, resolve);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("地图组件连接超时")), 12000);
+    AMap.plugin(plugins, () => { clearTimeout(timer); resolve(); });
   });
 }
 
